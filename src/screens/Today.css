@@ -167,7 +167,6 @@
 }
 .plus-mark { font-size: 22px; font-weight: 400; color: var(--pencil); line-height: 1; }
 .starter { color: var(--ink); }
-.pad-hint { margin: 14px 22px 0 66px; font-size: 13px; color: var(--pencil); }
 .pad-loading { height: 160px; margin: 0 22px 0 66px; border-radius: 8px; background: #CFD0D3; animation: shimmer 1.2s ease-in-out infinite; }
 
 .blank { padding-bottom: 6px; }

@@ -99,7 +99,6 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
     <main className="paper-page tab-screen admin">
       <header className="desk-head">
         <h1 className="page-title">Notes</h1>
-        <p className="page-sub">Only you see what you’ve written here.</p>
         {switcher}
       </header>
 
@@ -148,7 +147,6 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
         <form className="pad-section" onSubmit={addReward}>
           <h2 className="pad-h">Add a reward</h2>
           <div className="pad-block admin-form">
-            <p className="field-hint">Unlocked with a streak of fully done days.</p>
             <div className="inline-fields">
               <input className="line-input" aria-label="Reward" placeholder="Date night, you pick" value={rewardTitle} onChange={(e) => setRewardTitle(e.target.value)} maxLength={80} />
               <label className="admin-field">

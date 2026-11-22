@@ -108,7 +108,7 @@ src/screens/Progress.*     Streak numeral + tally marks, week bars, pen-marked m
 src/screens/Notes.*        "For you": surprises, locked-note count, rewards (claim), opened notes
 src/screens/NotesAdmin.jsx "Write to <name>": notes (after a finished day / surprise at a time), rewards, real delivery status
 src/screens/Nudges.*       Notifications switch (checks the database) + errors, snooze, "Tell Eljon when I finish my day",
-                           schedule, nudge style, times, name, sign out
+                           nudge style, times, name, sign out (no explainer texts: kept uncluttered on purpose)
 
 src/components/TaskRow.jsx     Ruled row: margin checkbox, pen strike, Big three highlighter, steps panel (+ Edit / Focus buttons),
                                swipe-left delete, hold (or right-click) to edit, drag the dots to reorder

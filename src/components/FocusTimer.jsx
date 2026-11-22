@@ -70,7 +70,6 @@ export default function FocusTimer({ session: initial, canFinish, onDone, onClos
               ))}
             </div>
             <button type="button" className="btn btn-ink" onClick={() => start()}>Start {session.minutes} minutes</button>
-            <p className="focus-hint">The timer keeps going if you lock your phone. Come back to Bob when it’s done.</p>
           </>
         )}
 

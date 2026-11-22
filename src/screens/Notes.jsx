@@ -29,7 +29,6 @@ export default function Notes({ notes, allDone, switcher }) {
     <main className="paper-page tab-screen notes">
       <header className="desk-head">
         <h1 className="page-title">Notes</h1>
-        <p className="page-sub">Little messages, just for you.</p>
         {switcher}
       </header>
 

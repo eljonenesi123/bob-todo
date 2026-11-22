@@ -115,9 +115,7 @@ export default function Today({ name }) {
         )}
       </header>
 
-      <p className="greeting">
-        {isToday ? 'Here’s your page for today.' : `Planning ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}
-      </p>
+      {!isToday && <p className="greeting">Planning {d.toLocaleDateString('en-GB', { weekday: 'long' })}</p>}
 
       <DayStrip days={days} selected={day} onSelect={setSelected} />
 
@@ -167,7 +165,6 @@ export default function Today({ name }) {
           <span>{isToday ? 'Write a task' : `Plan something for ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}</span>
         </button>
 
-        {list.length > 0 && <p className="pad-hint">Hold a line to edit it. Drag the dots to move it. Swipe left to delete.</p>}
       </section>
 
       <AddTaskSheet open={sheetOpen} editing={editing} onClose={closeSheet} onAdd={addTask}

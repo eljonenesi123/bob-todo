@@ -6,14 +6,6 @@ import { isIOS, isStandalone, notificationsSupported } from '../lib/pwa'
 import { enablePush, disablePush, deviceStatus } from '../lib/push'
 import './Nudges.css'
 
-const SCHEDULE = [
-  { time: '13:00', name: 'Midday check', when: 'If less than half is done' },
-  { time: '17:00', name: 'Big three push', when: 'If a Big three task is open' },
-  { time: '20:00', name: 'Streak saver', when: 'If your streak is at risk' },
-  { time: '21:30', name: 'Evening wrap', when: 'If tasks are left' },
-  { time: '19:00', day: 'Sun', name: 'Weekly recap', when: 'Every Sunday evening' },
-]
-
 const STYLES = [
   { id: 'gentle', label: 'Gentle' },
   { id: 'sweet_hype', label: 'Sweet and hype' },
@@ -81,7 +73,6 @@ export default function Nudges({ profile, update, onPushFixed, partnerName }) {
     <main className="paper-page tab-screen nudges">
       <header className="desk-head">
         <h1 className="page-title">Nudges</h1>
-        <p className="page-sub">Only sent when tasks are still open.</p>
       </header>
 
       <section className="pad" aria-label="Nudge settings">
@@ -133,28 +124,6 @@ export default function Nudges({ profile, update, onPushFixed, partnerName }) {
           )}
         </section>
 
-        <section className="pad-section">
-          <h2 className="pad-h">Your day with Bob</h2>
-          <ol className="ruled schedule">
-            <li className="pad-line">
-              <span className="row-margin sched-time">{profile?.quote_time?.slice(0, 5) ?? '08:00'}</span>
-              <span className="line-body"><span className="line-title">Quote of the day</span><span className="line-sub">With a look at today’s list</span></span>
-            </li>
-            {SCHEDULE.map((s) => (
-              <li key={s.name} className="pad-line">
-                <span className="row-margin sched-time">{s.day && <small>{s.day}</small>}{s.time}</span>
-                <span className="line-body"><span className="line-title">{s.name}</span><span className="line-sub">{s.when}</span></span>
-              </li>
-            ))}
-            <li className="pad-line">
-              <span className="row-margin sched-time" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-              </span>
-              <span className="line-body"><span className="line-title">Task reminders</span><span className="line-sub">At the time you pick on a task</span></span>
-            </li>
-          </ol>
-        </section>
-
         {profile && (
           <>
             <section className="pad-section">
@@ -192,9 +161,7 @@ export default function Nudges({ profile, update, onPushFixed, partnerName }) {
               <h2 className="pad-h"><label htmlFor="display-name">Your name</label></h2>
               <div className="pad-block">
                 <input id="display-name" className="line-input" defaultValue={profile.display_name ?? ''} maxLength={40}
-                  aria-describedby="display-name-hint"
                   onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== profile.display_name) update({ display_name: v }) }} />
-                <p id="display-name-hint" className="field-hint">Bob uses it in your nudges.</p>
               </div>
             </section>
           </>

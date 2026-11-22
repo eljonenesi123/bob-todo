@@ -19,7 +19,6 @@
 .focus-line { height: 3px; background: var(--rule); border-radius: 2px; overflow: hidden; }
 .focus-line span { display: block; height: 100%; background: var(--ink); transform-origin: left center; transition: transform .25s linear; }
 .focus-presets { margin-top: 6px; }
-.focus-hint { margin: 0; font-size: 13px; line-height: 1.45; color: var(--pencil); }
 .focus-end { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
 .focus-end .ink-btn { align-self: center; }
 .focus-msg { margin: 0; font-family: var(--serif); font-style: italic; font-size: 22px; }
