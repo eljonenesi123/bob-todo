@@ -7,7 +7,6 @@ import { enablePush, disablePush, getSubscription } from '../lib/push'
 import './Nudges.css'
 
 const SCHEDULE = [
-  { time: '08:30', name: 'Morning plan', when: 'Every morning' },
   { time: '13:00', name: 'Midday check', when: 'If less than half is done' },
   { time: '17:00', name: 'Big 3 push', when: 'If a Big 3 task is open' },
   { time: '20:00', name: 'Streak saver', when: 'If your streak is at risk' },
@@ -105,6 +104,10 @@ export default function Nudges({ profile, update }) {
       <motion.section className="panel" {...rise(3)}>
         <h2>Your day with Bob</h2>
         <ol className="schedule">
+          <li>
+            <span className="sched-time">{profile?.quote_time?.slice(0, 5) ?? '08:00'}</span>
+            <span className="sched-text"><strong>Quote of the day</strong><span>With a look at today's list</span></span>
+          </li>
           {SCHEDULE.map((s) => (
             <li key={s.name}>
               <span className="sched-time">{s.time}</span>
@@ -127,6 +130,13 @@ export default function Nudges({ profile, update }) {
                 aria-pressed={profile.nudge_style === s.id} onClick={() => update({ nudge_style: s.id })}>{s.label}</button>
             ))}
           </div>
+
+          <h2 style={{ marginTop: 8 }}>Quote of the day</h2>
+          <label className="quote-time">
+            <span className="label">Arrives at</span>
+            <input type="time" className="field" value={profile.quote_time?.slice(0, 5) ?? '08:00'}
+              onChange={(e) => e.target.value && update({ quote_time: e.target.value })} />
+          </label>
 
           <h2 style={{ marginTop: 8 }}>Quiet hours</h2>
           <div className="quiet-row">

@@ -14,3 +14,4 @@
 .quiet-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .quiet-row label { display: flex; flex-direction: column; gap: 6px; }
 .signout { align-self: center; }
+.quote-time { display: flex; flex-direction: column; gap: 6px; max-width: 50%; }

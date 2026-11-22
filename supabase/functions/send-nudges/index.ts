@@ -16,13 +16,41 @@ webpush.setVapidDetails(
 const WINDOW = 120 // a nudge can go out up to 2h after its time (if the cron was late or the condition became true later)
 const MAX_PER_DAY = 4 // scheduled nudges per day (task reminders, notes and rewards don't count)
 const SLOTS = [
-  { kind: 'morning', at: 8 * 60 + 30 },
   { kind: 'midday', at: 13 * 60 },
   { kind: 'big3', at: 17 * 60 },
   { kind: 'streak', at: 20 * 60 },
   { kind: 'evening', at: 21 * 60 + 30 },
 ]
 const RECAP_AT = 19 * 60 // Sundays
+
+// Same list and order as the app (src/lib/quotes.js), so phone and app show the same quote
+const QUOTES = [
+  'Small steps still move you forward. Start with one.',
+  'You don\u2019t have to do it all. Just the next thing.',
+  'Done is better than perfect. Tick one off.',
+  'Future you is already proud. Keep going.',
+  'One task at a time is still a whole day of progress.',
+  'Start messy. Finish anyway.',
+  'Your pace is the right pace.',
+  'Five focused minutes beat an hour of worrying.',
+  'Hard things first, then the fun stuff tastes better.',
+  'You\u2019ve handled every hard day so far. This one too.',
+  'Progress loves a tiny start.',
+  'Be the reason today goes well.',
+  'Breathe, pick one, begin.',
+  'Little wins add up to big days.',
+  'Today counts, even the quiet parts.',
+  'Make it easy for yourself: smallest step first.',
+  'You\u2019re doing better than you think.',
+  'Momentum starts with one checkmark.',
+  'Focus on the next tick, not the whole list.',
+  'Rest is part of the plan too.',
+]
+function quoteFor(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number)
+  const dayOfYear = Math.round((Date.UTC(y, m - 1, d) - Date.UTC(y, 0, 0)) / 86400000)
+  return QUOTES[dayOfYear % QUOTES.length]
+}
 
 type Task = { id: string; repeat: string; due_on: string | null; created_at: string; archived: boolean; is_big3: boolean; remind_at: string | null; title: string }
 type Completion = { task_id: string; done_on: string }
@@ -95,16 +123,6 @@ function message(kind: string, ctx: { name: string; style: string; total: number
   const { name, style, total, done, left, bigLeft } = ctx
   const hi = name ? `, ${name}` : ''
   switch (kind) {
-    case 'morning':
-      if (total === 0) return { title: `Good morning${hi} ☀️`, body: 'Your list is empty. Add one small thing to get the day going.' }
-      return {
-        title: pick(style, { gentle: `Good morning${hi} ☀️`, sweet_hype: `Rise and shine${hi}! ✨`, tough_love: `Morning${hi}.` }),
-        body: pick(style, {
-          gentle: `${plural(total, 'thing')} today. Pick your Big 3 and start with the easiest.`,
-          sweet_hype: `${plural(total, 'task')} on the board today. Let's go get them!`,
-          tough_love: `${plural(total, 'task')}. Start now, thank yourself later.`,
-        }),
-      }
     case 'midday':
       if (total === 0 || done >= total / 2) return null
       return {
@@ -200,7 +218,14 @@ async function handleUser(p: any, subs: Sub[], names: Map<string, string>, sent:
 
   if (p.snoozed_on === now.date) return
 
-  // 3. Weekly recap, Sunday evening
+  // 3. Quote of the day at her chosen time, with a glance at today's list
+  const qAt = toMin(p.quote_time ?? '08:00')
+  if (now.minutes >= qAt && now.minutes < qAt + WINDOW && await once(p.id, 'quote', '', now.date)) {
+    const plan = total === 0 ? 'Nothing on the list yet.' : `${plural(total, 'task')} on today\u2019s list.`
+    await push({ title: name ? `Good morning, ${name}` : 'Good morning', body: `\u201C${quoteFor(now.date)}\u201D ${plan}`, tag: 'quote' }, 'quote')
+  }
+
+  // 4. Weekly recap, Sunday evening
   if (now.weekday === 'Sun' && now.minutes >= RECAP_AT && now.minutes < RECAP_AT + WINDOW) {
     const count = c.filter((x) => x.done_on > addDays(now.date, -7)).length
     if (count > 0 && await once(p.id, 'recap', '', now.date)) {
@@ -210,7 +235,7 @@ async function handleUser(p: any, subs: Sub[], names: Map<string, string>, sent:
 
   if (total > 0 && left === 0) return // day complete: no more nudging
 
-  // 4. Task reminders at the time she picked
+  // 5. Task reminders at the time she picked
   for (const task of today.due) {
     if (!task.remind_at || today.doneIds.has(task.id)) continue
     const at = toMin(task.remind_at)
@@ -219,7 +244,7 @@ async function handleUser(p: any, subs: Sub[], names: Map<string, string>, sent:
     }
   }
 
-  // 5. Scheduled nudges, capped per day
+  // 6. Scheduled nudges, capped per day
   const { count: used } = await db.from('nudge_log').select('id', { count: 'exact', head: true })
     .eq('user_id', p.id).eq('sent_on', now.date).in('kind', SLOTS.map((s) => s.kind))
   let budget = MAX_PER_DAY - (used ?? 0)
@@ -240,10 +265,16 @@ Deno.serve(async (req) => {
   }
   const body = await req.json().catch(() => ({}))
 
-  const [{ data: profiles }, { data: subs }] = await Promise.all([
+  const [{ data: profiles, error: pErr }, { data: subs, error: sErr }] = await Promise.all([
     db.from('profiles').select('*'),
     db.from('push_subscriptions').select('*'),
   ])
+  const debug = {
+    profiles: profiles?.length ?? 0,
+    devices: subs?.length ?? 0,
+    error: pErr?.message || sErr?.message || null,
+    keyType: (Deno.env.get('SB_SECRET_KEY') || '').slice(0, 10),
+  }
   const byUser = new Map<string, Sub[]>()
   for (const s of (subs ?? []) as Sub[]) byUser.set(s.user_id, [...(byUser.get(s.user_id) ?? []), s])
   const names = new Map((profiles ?? []).map((p) => [p.id, p.display_name]))
@@ -255,7 +286,7 @@ Deno.serve(async (req) => {
       await sendToAll(list, { title: 'Bob says hi ☀️', body: 'Notifications are working!', tag: 'test', url: './' })
       sent.push(`${userId.slice(0, 6)}:test`)
     }
-    return Response.json({ ok: true, sent })
+    return Response.json({ ok: true, sent, debug })
   }
 
   for (const p of profiles ?? []) {

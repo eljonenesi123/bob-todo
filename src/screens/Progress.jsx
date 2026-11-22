@@ -37,7 +37,7 @@ export default function Progress({ notes }) {
         </div>
         <div>
           <p className="streak-num">{stats.streak} day{stats.streak === 1 ? '' : 's'}</p>
-          <p className="streak-sub">Current streak · best is {Math.max(stats.best, stats.streak)}</p>
+          <p className="streak-sub">in a row. Your best so far is {Math.max(stats.best, stats.streak)}.</p>
         </div>
       </motion.section>
 

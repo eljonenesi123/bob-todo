@@ -46,7 +46,7 @@ export default function DayComplete({ notes, total, onClose }) {
 
         <motion.div className="dc-head" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <h1>All done for today</h1>
-          <p>{total} of {total} tasks{streak > 0 ? ` · streak is now ${streak} day${streak === 1 ? '' : 's'}` : ''}</p>
+          <p>{total} of {total} done.{streak > 1 ? ` That’s ${streak} days in a row.` : ''}</p>
         </motion.div>
 
         {note && (

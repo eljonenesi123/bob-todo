@@ -1,97 +1,146 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
-import { greeting, prettyDate } from '../lib/dates'
+import { addDays, greeting } from '../lib/dates'
 import { quoteOfTheDay } from '../lib/quotes'
-import ProgressCard from '../components/ProgressCard'
+import DayStrip from '../components/DayStrip'
 import TaskRow from '../components/TaskRow'
 import AddTaskSheet from '../components/AddTaskSheet'
-import EmptyState from '../components/EmptyState'
 import './Today.css'
 
-const rise = (i) => ({
-  initial: { opacity: 0, y: 16 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.5, delay: i * 0.08, ease: [0.2, 0.8, 0.2, 1] },
-})
+const PLAN_AHEAD = 5
+const STARTERS = [
+  { title: 'Drink 2L of water', category: 'health' },
+  { title: 'Ten-minute walk', category: 'health' },
+  { title: 'Read ten pages', category: 'study' },
+  { title: 'Plan tomorrow', category: 'personal' },
+]
 
-// Undone first, done sink to the bottom
 const byDone = (a, b) => Number(a.done) - Number(b.done)
+const dateOf = (iso) => new Date(iso + 'T12:00:00')
 
 export default function Today() {
-  const { loading, todayTasks, toggle, addTask, removeTask } = useTaskData()
+  const data = useTaskData()
+  const { loading, today, todayTasks, planFor, toggle, addTask, removeTask, addStep, toggleStep, removeStep } = data
+  const [selected, setSelected] = useState(null)
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  const big = todayTasks.filter((t) => t.is_big3).sort(byDone)
-  const rest = todayTasks.filter((t) => !t.is_big3).sort(byDone)
+  const day = selected && selected >= today ? selected : today
+  const isToday = day === today
+
+  const days = useMemo(() => Array.from({ length: PLAN_AHEAD + 1 }, (_, i) => {
+    const iso = addDays(today, i)
+    const d = dateOf(iso)
+    const list = planFor(iso)
+    return {
+      iso,
+      isToday: i === 0,
+      dow: d.toLocaleDateString('en-GB', { weekday: 'short' }),
+      num: d.getDate(),
+      label: d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
+      count: i === 0 ? list.filter((t) => !t.done).length : list.length,
+    }
+  }), [today, planFor])
+
+  const list = isToday ? todayTasks : planFor(day)
+  const big = list.filter((t) => t.is_big3).sort(byDone)
+  const rest = list.filter((t) => !t.is_big3).sort(byDone)
   const done = todayTasks.filter((t) => t.done).length
   const total = todayTasks.length
+  const d = dateOf(day)
+
+  const rowProps = { today, future: !isToday, onToggle: toggle, onRemove: removeTask, onAddStep: addStep, onToggleStep: toggleStep, onRemoveStep: removeStep }
 
   return (
-    <main className="screen today tab-screen">
-      <motion.header className="today-header" {...rise(0)}>
-        <p className="today-date">{prettyDate()}</p>
-        <h1>{greeting()}</h1>
-      </motion.header>
+    <main className="today">
+      <header className="masthead">
+        <AnimatePresence mode="popLayout" initial={false}>
+          <motion.div key={day} className="mast-date"
+            initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -14 }}
+            transition={{ duration: 0.25, ease: [0.2, 0.8, 0.2, 1] }}>
+            <span className="mast-num">{d.getDate()}</span>
+            <span className="mast-words">
+              <span className="mast-dow">{d.toLocaleDateString('en-GB', { weekday: 'long' })}</span>
+              <span className="mast-month">{d.toLocaleDateString('en-GB', { month: 'long' })}</span>
+            </span>
+          </motion.div>
+        </AnimatePresence>
 
-      {loading ? (
-        <div className="skeleton" aria-label="Loading" />
-      ) : total === 0 ? (
-        <EmptyState
-          onAdd={() => setSheetOpen(true)}
-          onQuickAdd={(s) => addTask({ ...s, repeat: 'once', is_big3: false })}
-        />
-      ) : (
-        <>
-          <motion.div {...rise(1)}><ProgressCard done={done} total={total} /></motion.div>
+        {isToday && total > 0 && (
+          <div className="tally" aria-label={`${done} of ${total} done`}>
+            <span className="tally-text"><strong>{done}</strong> of {total}</span>
+            <span className="tally-bar" aria-hidden="true">
+              {todayTasks.map((t) => <i key={t.id} className={t.done ? 'on' : ''} />)}
+            </span>
+          </div>
+        )}
+      </header>
 
-          <motion.section className="card quote-card" {...rise(2)}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--gray)" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" /></svg>
-            <div>
-              <p className="quote-label">Today's spark</p>
-              <p className="quote-text">{quoteOfTheDay()}</p>
-            </div>
-          </motion.section>
+      <p className="greeting">
+        {isToday ? greeting() : `Planning ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}
+      </p>
 
-          {big.length > 0 && (
-            <motion.section className="task-section" {...rise(3)}>
-              <div className="section-head">
-                <h2 className="section-title yellow">Big 3</h2>
-                <span className="section-hint">Do these first</span>
-              </div>
-              <ul className="task-list">
-                <AnimatePresence initial={false}>
-                  {big.map((t) => <TaskRow key={t.id} task={t} big onToggle={toggle} onRemove={removeTask} />)}
-                </AnimatePresence>
+      <DayStrip days={days} selected={day} onSelect={setSelected} />
+
+      <section className="pad" aria-label={isToday ? 'Today’s list' : `Plan for ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}>
+        {isToday && <p className="quote">{quoteOfTheDay()}</p>}
+
+        {loading ? (
+          <div className="pad-loading" aria-label="Loading" />
+        ) : list.length === 0 ? (
+          <div className="blank">
+            <p className="blank-title">{isToday ? 'Blank page.' : 'Nothing planned yet.'}</p>
+            <p className="blank-sub">{isToday ? 'Write the first thing you want done today, or pick one of these.' : 'Add what you already know is coming, so the day starts with a plan.'}</p>
+            {isToday && (
+              <ul className="ruled">
+                {STARTERS.map((s) => (
+                  <li key={s.title}>
+                    <button type="button" className="starter" onClick={() => addTask({ ...s, repeat: 'once', is_big3: false })}>
+                      <span className="row-margin"><span className="plus-mark" aria-hidden="true">+</span></span>
+                      <span>{s.title}</span>
+                    </button>
+                  </li>
+                ))}
               </ul>
-            </motion.section>
-          )}
+            )}
+          </div>
+        ) : (
+          <>
+            {big.length > 0 && (
+              <section className="pad-section">
+                <h2 className="pad-h">Big three</h2>
+                <ul className="ruled">
+                  <AnimatePresence initial={false}>
+                    {big.map((t) => <TaskRow key={t.id} task={t} big {...rowProps} />)}
+                  </AnimatePresence>
+                </ul>
+              </section>
+            )}
+            {rest.length > 0 && (
+              <section className="pad-section">
+                <h2 className="pad-h">{big.length ? 'Everything else' : isToday ? 'Today' : 'Planned'}</h2>
+                <ul className="ruled">
+                  <AnimatePresence initial={false}>
+                    {rest.map((t) => <TaskRow key={t.id} task={t} {...rowProps} />)}
+                  </AnimatePresence>
+                </ul>
+              </section>
+            )}
+          </>
+        )}
 
-          {rest.length > 0 && (
-            <motion.section className="task-section" {...rise(4)}>
-              <h2 className="section-title">{big.length ? 'Everything else' : 'Today'}</h2>
-              <ul className="task-list">
-                <AnimatePresence initial={false}>
-                  {rest.map((t) => <TaskRow key={t.id} task={t} onToggle={toggle} onRemove={removeTask} />)}
-                </AnimatePresence>
-              </ul>
-            </motion.section>
-          )}
+        <button type="button" className="write-row" onClick={() => setSheetOpen(true)}>
+          <span className="row-margin"><span className="pen" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+          </span></span>
+          <span>{isToday ? 'Write a task' : `Plan something for ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}</span>
+        </button>
 
-          <p className="swipe-hint">Tip: swipe a task left to delete it.</p>
-        </>
-      )}
-
-      {total > 0 && (
-        <motion.button type="button" className="fab" aria-label="Add task" onClick={() => setSheetOpen(true)}
-          initial={{ scale: 0 }} animate={{ scale: 1 }} whileTap={{ scale: 0.9 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 18, delay: 0.4 }}>
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-        </motion.button>
-      )}
+        {list.length > 0 && <p className="pad-hint">Swipe a line left to delete it.</p>}
+      </section>
 
       <AddTaskSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onAdd={addTask}
-        bigCount={todayTasks.filter((t) => t.is_big3).length} />
+        bigCount={todayTasks.filter((t) => t.is_big3).length} days={days} day={day} />
     </main>
   )
 }

@@ -31,7 +31,7 @@ export default function Notes({ notes, allDone }) {
 
       {notes.surprises.map((n, i) => (
         <motion.button key={n.id} type="button" className="surprise-card" onClick={() => read(n)} {...rise(i + 1)}>
-          <span className="surprise-icon" aria-hidden="true">💌</span>
+          <span className="surprise-icon" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg></span>
           <span className="surprise-text">
             <strong>New message from {notes.authorName(n)}</strong>
             <span>Tap to open</span>
@@ -63,10 +63,10 @@ export default function Notes({ notes, allDone }) {
               const ready = !r.claimed_at && streak >= r.streak_required
               return (
                 <li key={r.id} className={`reward-item ${r.claimed_at ? 'claimed' : ready ? 'ready' : ''}`}>
-                  <span className="reward-gift" aria-hidden="true">🎁</span>
+                  <span className="reward-gift" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="8" width="18" height="13" rx="2" /><path d="M12 8v13M3 12h18M12 8c-2-4-6-4-6-1s6 1 6 1zM12 8c2-4 6-4 6-1s-6 1-6 1z" /></svg></span>
                   <span className="reward-info">
                     <strong>{r.title}</strong>
-                    <span>{r.claimed_at ? `Claimed ${fmt(r.claimed_at)}` : ready ? 'Unlocked!' : `${r.streak_required}-day streak · ${Math.max(0, r.streak_required - streak)} to go`}</span>
+                    <span>{r.claimed_at ? `Claimed ${fmt(r.claimed_at)}` : ready ? 'Unlocked!' : `${r.streak_required}-day streak, ${Math.max(0, r.streak_required - streak)} to go`}</span>
                   </span>
                   {ready && <button type="button" className="btn claim-btn" onClick={() => notes.claimReward(r)}>Claim</button>}
                 </li>
