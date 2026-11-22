@@ -32,12 +32,14 @@ export default function Welcome() {
   return (
     <main className="paper-page welcome">
       <header className="desk-head welcome-head">
-        <span className="welcome-sun" aria-hidden="true">
-          <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" strokeWidth="2.2" strokeLinecap="round">
-            <circle cx="12" cy="12" r="4.5" />
-            <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-          </svg>
-        </span>
+        {/* The Tally mark from the app icon: four pen strokes, the fifth in highlighter */}
+        <svg className="welcome-mark" width="72" height="69" viewBox="250 262 520 500" aria-hidden="true">
+          <g fill="none" stroke="var(--silver)" strokeWidth="44" strokeLinecap="round">
+            <path d="M355 297 Q350 512 353 727" /><path d="M453 292 Q460 512 457 732" />
+            <path d="M550 299 Q545 511 546 723" /><path d="M647 293 Q652 510 650 728" />
+          </g>
+          <line x1="285" y1="641" x2="739" y2="380" stroke="var(--yellow)" strokeWidth="70" />
+        </svg>
         <h1 className="welcome-title">Bob</h1>
         <p className="welcome-tagline">Your day, one small win at a time.</p>
       </header>

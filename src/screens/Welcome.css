@@ -1,9 +1,6 @@
 /* ---------- Welcome: the name on the desk, the sign-in on paper ---------- */
 .welcome-head { padding-top: 40px; padding-bottom: 32px; }
-.welcome-sun {
-  width: 56px; height: 56px; border-radius: 16px; background: var(--yellow);
-  display: flex; align-items: center; justify-content: center; margin-bottom: 22px;
-}
+.welcome-mark { display: block; margin-bottom: 22px; }
 .welcome-title {
   margin: 0; font-size: 96px; line-height: .85; font-weight: 800; letter-spacing: -0.05em;
   font-variation-settings: 'opsz' 96, 'wdth' 75;

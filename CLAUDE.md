@@ -74,6 +74,7 @@ vite.config.js             base '/bob-todo/', VitePWA manifest (name Bob, theme 
 public/icons/*, apple-touch-icon.png, favicon.svg   Sun-on-yellow app icons
 src/main.jsx               React root
 src/App.jsx                Session gate: Welcome (signed out) → Setup (first run) → TasksProvider + Shell
+                           Splash (src/components/Splash.*) on top for ≥1.6s: Tally mark draws itself + quote of the day
 src/Shell.jsx              Tabs (today/progress/notes/nudges), BottomNav, Day-complete overlay, syncPush()
 src/sw.js                  Service worker: precache, offline navigation, 'push' + 'notificationclick', app badge
 src/index.css              Global tokens (colors, fonts), .screen/.btn/.field basics

@@ -1,0 +1,30 @@
+/* ---------- Opening screen ---------- */
+.splash {
+  position: fixed; inset: 0; z-index: 50; background: var(--gray);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 0 32px;
+}
+/* The mark sits at the exact centre; the quote hangs below it, so nothing jumps */
+.splash-mark { display: block; }
+.splash-mark path, .splash-swipe {
+  stroke-dasharray: 1; stroke-dashoffset: 1;
+  animation: splash-draw .22s cubic-bezier(.4, 0, .2, 1) both;
+}
+.splash-mark path { animation-delay: calc(.1s + var(--i) * .13s); }
+.splash-swipe { animation-duration: .32s; animation-delay: .68s; }
+/* Hidden until its turn, so the round pen tips don't show as dots beforehand */
+@keyframes splash-draw { 0% { opacity: 0; } 1% { opacity: 1; } 100% { opacity: 1; stroke-dashoffset: 0; } }
+
+.splash-quote {
+  position: absolute; top: calc(50% + 78px); left: 32px; right: 32px; max-width: 360px; margin: 0 auto;
+  font-family: var(--serif); font-style: italic; font-size: 19px; line-height: 1.45;
+  color: var(--silver); text-align: center;
+  opacity: 0; animation: splash-fade .5s ease .55s forwards;
+}
+@keyframes splash-fade { to { opacity: 1; } }
+
+/* Reduced motion: everything is simply there (the global rule turns animations off) */
+@media (prefers-reduced-motion: reduce) {
+  .splash-mark path, .splash-swipe { stroke-dashoffset: 0; }
+  .splash-quote { opacity: 1; }
+}
