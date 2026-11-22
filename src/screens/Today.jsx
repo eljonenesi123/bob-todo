@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { supabase } from '../lib/supabase'
-import { useTasks } from '../hooks/useTasks'
+import { useTaskData } from '../context/tasks'
 import { greeting, prettyDate } from '../lib/dates'
 import { quoteOfTheDay } from '../lib/quotes'
 import ProgressCard from '../components/ProgressCard'
@@ -20,7 +19,7 @@ const rise = (i) => ({
 const byDone = (a, b) => Number(a.done) - Number(b.done)
 
 export default function Today() {
-  const { loading, todayTasks, toggle, addTask, removeTask } = useTasks()
+  const { loading, todayTasks, toggle, addTask, removeTask } = useTaskData()
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const big = todayTasks.filter((t) => t.is_big3).sort(byDone)
@@ -29,7 +28,7 @@ export default function Today() {
   const total = todayTasks.length
 
   return (
-    <main className="screen today">
+    <main className="screen today tab-screen">
       <motion.header className="today-header" {...rise(0)}>
         <p className="today-date">{prettyDate()}</p>
         <h1>{greeting()}</h1>
@@ -82,8 +81,6 @@ export default function Today() {
           <p className="swipe-hint">Tip: swipe a task left to delete it.</p>
         </>
       )}
-
-      <button type="button" className="btn btn-ghost signout" onClick={() => supabase.auth.signOut()}>Sign out</button>
 
       {total > 0 && (
         <motion.button type="button" className="fab" aria-label="Add task" onClick={() => setSheetOpen(true)}

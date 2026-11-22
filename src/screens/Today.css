@@ -1,4 +1,4 @@
-.today { gap: 20px; padding-bottom: 140px; }
+.today { gap: 20px; }
 
 .today-header h1 { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
 .today-date { margin: 0 0 4px; font-size: 14px; font-weight: 500; color: var(--muted); }
@@ -54,10 +54,9 @@
 .task.is-done .task-tag { color: #8D9096; }
 
 .swipe-hint { margin: 0; font-size: 12px; color: var(--muted); text-align: center; }
-.signout { align-self: center; margin-top: 8px; }
 
 .fab {
-  position: fixed; right: max(20px, calc(50% - 220px)); bottom: max(28px, env(safe-area-inset-bottom));
+  position: fixed; right: max(20px, calc(50% - 220px)); bottom: calc(96px + env(safe-area-inset-bottom));
   width: 60px; height: 60px; border-radius: 20px; border: none; background: var(--yellow); color: var(--gray);
   display: flex; align-items: center; justify-content: center; cursor: pointer;
   box-shadow: 0 10px 24px rgba(0, 0, 0, .35); z-index: 10;

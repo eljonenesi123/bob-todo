@@ -1,0 +1,271 @@
+// Bob: daily nudges. Runs every 5 minutes (pg_cron), decides who needs a push, sends it.
+// Secrets needed (Edge Functions → Secrets):
+//   SB_SECRET_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET
+import { createClient } from 'npm:@supabase/supabase-js@2'
+import webpush from 'npm:web-push@3.6.7'
+
+const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SB_SECRET_KEY')!, {
+  auth: { persistSession: false },
+})
+webpush.setVapidDetails(
+  Deno.env.get('VAPID_SUBJECT')!,
+  Deno.env.get('VAPID_PUBLIC_KEY')!,
+  Deno.env.get('VAPID_PRIVATE_KEY')!,
+)
+
+const WINDOW = 120 // a nudge can go out up to 2h after its time (if the cron was late or the condition became true later)
+const MAX_PER_DAY = 4 // scheduled nudges per day (task reminders, notes and rewards don't count)
+const SLOTS = [
+  { kind: 'morning', at: 8 * 60 + 30 },
+  { kind: 'midday', at: 13 * 60 },
+  { kind: 'big3', at: 17 * 60 },
+  { kind: 'streak', at: 20 * 60 },
+  { kind: 'evening', at: 21 * 60 + 30 },
+]
+const RECAP_AT = 19 * 60 // Sundays
+
+type Task = { id: string; repeat: string; due_on: string | null; created_at: string; archived: boolean; is_big3: boolean; remind_at: string | null; title: string }
+type Completion = { task_id: string; done_on: string }
+type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string }
+
+// ---------- dates (same rules as the app) ----------
+function local(tz: string) {
+  let parts: Record<string, string>
+  try {
+    parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23',
+    }).formatToParts(new Date()).map((p) => [p.type, p.value]))
+  } catch {
+    return local('Europe/Tirane')
+  }
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: Number(parts.hour) * 60 + Number(parts.minute),
+    weekday: parts.weekday,
+  }
+}
+const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+const inQuiet = (min: number, start: string, end: string) => {
+  const s = toMin(start), e = toMin(end)
+  return s <= e ? min >= s && min < e : min >= s || min < e
+}
+function addDays(iso: string, n: number) {
+  const d = new Date(iso + 'T12:00:00Z')
+  d.setUTCDate(d.getUTCDate() + n)
+  return d.toISOString().slice(0, 10)
+}
+const weekday = (iso: string) => new Date(iso + 'T12:00:00Z').getUTCDay()
+function isDueOn(task: Task, iso: string, doneEarlier: Set<string>) {
+  if (task.archived) return false
+  const start = task.due_on || task.created_at.slice(0, 10)
+  if (iso < start) return false
+  switch (task.repeat) {
+    case 'daily': return true
+    case 'weekdays': { const w = weekday(iso); return w >= 1 && w <= 5 }
+    case 'weekly': return weekday(iso) === weekday(start)
+    default: return start === iso || !doneEarlier.has(task.id)
+  }
+}
+function day(tasks: Task[], comps: Completion[], iso: string) {
+  const onceIds = new Set(tasks.filter((t) => t.repeat === 'once').map((t) => t.id))
+  const doneEarlier = new Set(comps.filter((c) => c.done_on < iso && onceIds.has(c.task_id)).map((c) => c.task_id))
+  const doneThatDay = new Set(comps.filter((c) => c.done_on === iso).map((c) => c.task_id))
+  const due = tasks.filter((t) => isDueOn(t, iso, doneEarlier))
+  return { due, doneIds: doneThatDay, done: due.filter((t) => doneThatDay.has(t.id)).length }
+}
+function streak(tasks: Task[], comps: Completion[], today: string) {
+  const full = (s: ReturnType<typeof day>) => s.due.length > 0 && s.done === s.due.length
+  let n = full(day(tasks, comps, today)) ? 1 : 0
+  let d = addDays(today, -1)
+  for (let i = 0; i < 60; i++) {
+    const s = day(tasks, comps, d)
+    if (s.due.length > 0) { if (full(s)) n++; else break }
+    d = addDays(d, -1)
+  }
+  return n
+}
+
+// ---------- messages ----------
+const pick = (style: string, v: { gentle: string; sweet_hype: string; tough_love: string }) =>
+  (v as Record<string, string>)[style] ?? v.gentle
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
+
+function message(kind: string, ctx: { name: string; style: string; total: number; done: number; left: number; bigLeft: number; streak: number }) {
+  const { name, style, total, done, left, bigLeft } = ctx
+  const hi = name ? `, ${name}` : ''
+  switch (kind) {
+    case 'morning':
+      if (total === 0) return { title: `Good morning${hi} ☀️`, body: 'Your list is empty. Add one small thing to get the day going.' }
+      return {
+        title: pick(style, { gentle: `Good morning${hi} ☀️`, sweet_hype: `Rise and shine${hi}! ✨`, tough_love: `Morning${hi}.` }),
+        body: pick(style, {
+          gentle: `${plural(total, 'thing')} today. Pick your Big 3 and start with the easiest.`,
+          sweet_hype: `${plural(total, 'task')} on the board today. Let's go get them!`,
+          tough_love: `${plural(total, 'task')}. Start now, thank yourself later.`,
+        }),
+      }
+    case 'midday':
+      if (total === 0 || done >= total / 2) return null
+      return {
+        title: 'Halfway check 💪',
+        body: pick(style, {
+          gentle: `${done} of ${total} done. One more before lunch ends?`,
+          sweet_hype: `${done} of ${total} done, you're warming up! One more?`,
+          tough_love: `${done} of ${total}. Half the day is gone. Pick one and finish it.`,
+        }),
+      }
+    case 'big3':
+      if (bigLeft === 0) return null
+      return { title: 'Your Big 3 is waiting ⭐', body: `${plural(bigLeft, 'Big 3 task')} still open. You've got time.` }
+    case 'streak':
+      if (ctx.streak < 3 || done > 0 || total === 0) return null
+      return { title: 'Keep your streak alive 🔥', body: `${ctx.streak} days in a row. One task keeps it going.` }
+    case 'evening':
+      if (left === 0) return null
+      return {
+        title: 'How did today go? 🌙',
+        body: pick(style, {
+          gentle: `${plural(left, 'task')} left, and that's okay. Finish one or leave it for tomorrow.`,
+          sweet_hype: `${plural(left, 'task')} left! Squeeze in one more win before bed?`,
+          tough_love: `${plural(left, 'task')} left. Ten minutes now beats carrying it to tomorrow.`,
+        }),
+      }
+  }
+  return null
+}
+
+// ---------- sending ----------
+async function sendToAll(subs: Sub[], payload: Record<string, unknown>) {
+  await Promise.all(subs.map(async (s) => {
+    try {
+      await webpush.sendNotification(
+        { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
+        JSON.stringify(payload),
+        { TTL: 3600 },
+      )
+    } catch (e) {
+      const code = (e as { statusCode?: number }).statusCode
+      if (code === 404 || code === 410) await db.from('push_subscriptions').delete().eq('id', s.id)
+      else console.error('push failed', code, (e as { body?: string }).body)
+    }
+  }))
+}
+
+// Returns true only the first time (kind, ref) is logged for that user and day → no duplicates
+async function once(userId: string, kind: string, ref: string, date: string) {
+  const { error } = await db.from('nudge_log').insert({ user_id: userId, kind, ref, sent_on: date })
+  return !error
+}
+
+// deno-lint-ignore no-explicit-any
+async function handleUser(p: any, subs: Sub[], names: Map<string, string>, sent: string[]) {
+  const now = local(p.timezone || 'Europe/Tirane')
+  if (inQuiet(now.minutes, p.quiet_start ?? '22:30', p.quiet_end ?? '08:00')) return
+
+  const [{ data: tasks }, { data: comps }] = await Promise.all([
+    db.from('tasks').select('*').eq('user_id', p.id).eq('archived', false),
+    db.from('task_completions').select('task_id, done_on').eq('user_id', p.id).gte('done_on', addDays(now.date, -60)),
+  ])
+  const t = (tasks ?? []) as Task[]
+  const c = (comps ?? []) as Completion[]
+  const today = day(t, c, now.date)
+  const total = today.due.length
+  const done = today.done
+  const left = total - done
+  const bigLeft = today.due.filter((x) => x.is_big3 && !today.doneIds.has(x.id)).length
+  const st = streak(t, c, now.date)
+  const name = (p.display_name && !p.display_name.includes('@')) ? p.display_name : ''
+  const push = (payload: Record<string, unknown>, label: string) => {
+    sent.push(`${p.id.slice(0, 6)}:${label}`)
+    return sendToAll(subs, { badge: left, url: './', ...payload })
+  }
+
+  // 1. Surprise notes whose time has come (even when snoozed: he chose the moment)
+  const { data: notes } = await db.from('notes').select('id, author_id')
+    .eq('recipient_id', p.id).eq('kind', 'surprise').is('notified_at', null).is('opened_at', null)
+    .lte('deliver_at', new Date().toISOString())
+  for (const n of notes ?? []) {
+    await db.from('notes').update({ notified_at: new Date().toISOString() }).eq('id', n.id)
+    await push({ title: '💌 Bob has a message for you', body: `From ${names.get(n.author_id) || 'someone special'}. Open Bob to read it.`, tag: `note-${n.id}` }, 'surprise')
+  }
+
+  // 2. Rewards that just unlocked
+  const { data: rewards } = await db.from('rewards').select('id, title, streak_required')
+    .eq('recipient_id', p.id).is('notified_at', null).is('claimed_at', null).lte('streak_required', st)
+  for (const r of rewards ?? []) {
+    await db.from('rewards').update({ notified_at: new Date().toISOString() }).eq('id', r.id)
+    await push({ title: '🎁 Reward unlocked!', body: `${st}-day streak: "${r.title}" is ready to claim.`, tag: `reward-${r.id}` }, 'reward')
+  }
+
+  if (p.snoozed_on === now.date) return
+
+  // 3. Weekly recap, Sunday evening
+  if (now.weekday === 'Sun' && now.minutes >= RECAP_AT && now.minutes < RECAP_AT + WINDOW) {
+    const count = c.filter((x) => x.done_on > addDays(now.date, -7)).length
+    if (count > 0 && await once(p.id, 'recap', '', now.date)) {
+      await push({ title: 'Your week with Bob 📊', body: `${plural(count, 'task')} done this week${st ? ` and a ${st}-day streak` : ''}. Proud of you.`, tag: 'recap' }, 'recap')
+    }
+  }
+
+  if (total > 0 && left === 0) return // day complete: no more nudging
+
+  // 4. Task reminders at the time she picked
+  for (const task of today.due) {
+    if (!task.remind_at || today.doneIds.has(task.id)) continue
+    const at = toMin(task.remind_at)
+    if (now.minutes >= at && now.minutes < at + WINDOW && await once(p.id, 'reminder', task.id, now.date)) {
+      await push({ title: `⏰ ${task.title}`, body: 'Your reminder is here. You can do this.', tag: `task-${task.id}` }, 'reminder')
+    }
+  }
+
+  // 5. Scheduled nudges, capped per day
+  const { count: used } = await db.from('nudge_log').select('id', { count: 'exact', head: true })
+    .eq('user_id', p.id).eq('sent_on', now.date).in('kind', SLOTS.map((s) => s.kind))
+  let budget = MAX_PER_DAY - (used ?? 0)
+  for (const slot of SLOTS) {
+    if (budget <= 0) break
+    if (now.minutes < slot.at || now.minutes >= slot.at + WINDOW) continue
+    const msg = message(slot.kind, { name, style: p.nudge_style, total, done, left, bigLeft, streak: st })
+    if (msg && await once(p.id, slot.kind, '', now.date)) {
+      await push({ ...msg, tag: slot.kind }, slot.kind)
+      budget--
+    }
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.headers.get('x-cron-secret') !== Deno.env.get('CRON_SECRET')) {
+    return new Response('Unauthorized', { status: 401 })
+  }
+  const body = await req.json().catch(() => ({}))
+
+  const [{ data: profiles }, { data: subs }] = await Promise.all([
+    db.from('profiles').select('*'),
+    db.from('push_subscriptions').select('*'),
+  ])
+  const byUser = new Map<string, Sub[]>()
+  for (const s of (subs ?? []) as Sub[]) byUser.set(s.user_id, [...(byUser.get(s.user_id) ?? []), s])
+  const names = new Map((profiles ?? []).map((p) => [p.id, p.display_name]))
+  const sent: string[] = []
+
+  // Manual test: {"test": true} sends a hello to every subscribed device
+  if (body?.test) {
+    for (const [userId, list] of byUser) {
+      await sendToAll(list, { title: 'Bob says hi ☀️', body: 'Notifications are working!', tag: 'test', url: './' })
+      sent.push(`${userId.slice(0, 6)}:test`)
+    }
+    return Response.json({ ok: true, sent })
+  }
+
+  for (const p of profiles ?? []) {
+    const list = byUser.get(p.id)
+    if (!list?.length) continue
+    try {
+      await handleUser(p, list, names, sent)
+    } catch (e) {
+      console.error('user failed', p.id, e)
+    }
+  }
+  return Response.json({ ok: true, sent })
+})

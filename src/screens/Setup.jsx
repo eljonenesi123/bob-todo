@@ -4,6 +4,7 @@ import {
   isStandalone, isIOS, notificationsSupported,
   canPromptInstall, onInstallAvailable, promptInstall, markSetupDone,
 } from '../lib/pwa'
+import { enablePush } from '../lib/push'
 import './Setup.css'
 
 const rise = (i) => ({
@@ -29,8 +30,8 @@ export default function Setup({ onDone }) {
   }
 
   async function allowNotifications() {
-    const result = await Notification.requestPermission()
-    setPermission(result)
+    await enablePush().catch(() => {})
+    setPermission(Notification.permission)
   }
 
   function finish() {

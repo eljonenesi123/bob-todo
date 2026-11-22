@@ -1,0 +1,48 @@
+.dc-overlay {
+  position: fixed; inset: 0; z-index: 30; background: var(--gray); overflow-y: auto;
+}
+.dc-confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.dc-confetti span { position: absolute; top: -20px; animation: dc-fall 3s linear infinite; }
+@keyframes dc-fall {
+  0% { transform: translateY(0) rotate(0); opacity: 0; }
+  10% { opacity: 1; }
+  100% { transform: translateY(110dvh) rotate(540deg); opacity: .9; }
+}
+
+.dc-content {
+  position: relative; max-width: 480px; min-height: 100dvh; margin: 0 auto;
+  padding: max(64px, env(safe-area-inset-top)) 24px max(28px, env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; align-items: center; gap: 26px;
+}
+.dc-badge {
+  width: 112px; height: 112px; border-radius: 36px; background: var(--yellow); margin-top: 24px;
+  display: flex; align-items: center; justify-content: center; box-shadow: 0 16px 40px rgba(255, 201, 60, .25);
+}
+.dc-head { text-align: center; }
+.dc-head h1 { margin: 0 0 8px; font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }
+.dc-head p { margin: 0; font-size: 15px; color: var(--muted); }
+
+.dc-note { width: 100%; perspective: 800px; }
+.dc-sealed, .dc-letter {
+  background: var(--silver); color: var(--gray); border-radius: 28px; padding: 26px 22px 22px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center;
+}
+.dc-sealed h2 { margin: 0; font-size: 22px; font-weight: 800; }
+.dc-envelope { animation: dc-wiggle 2.4s ease-in-out 1.2s infinite; transform-origin: 50% 100%; }
+@keyframes dc-wiggle {
+  0%, 70%, 100% { transform: rotate(0); }
+  75% { transform: rotate(-6deg); } 80% { transform: rotate(6deg); }
+  85% { transform: rotate(-4deg); } 90% { transform: rotate(3deg); }
+}
+.dc-kicker { margin: 0; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted-dark); }
+.dc-open { width: 100%; height: 56px; background: var(--gray); color: var(--yellow); font-size: 16px; margin-top: 4px; }
+.dc-letter { align-items: flex-start; text-align: left; transform-origin: top center; }
+.dc-body { margin: 0; font-size: 18px; font-weight: 600; line-height: 1.55; white-space: pre-wrap; }
+
+.dc-thought {
+  width: 100%; border: 1.5px solid var(--gray-3); border-radius: 20px; padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.dc-thought .dc-kicker { color: var(--muted); }
+.dc-thought p:last-child { margin: 0; font-size: 15px; font-weight: 600; line-height: 1.45; }
+.dc-back { margin-top: auto; }

@@ -1,0 +1,32 @@
+/* Every tab screen leaves room for the bottom menu */
+.tab-screen { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
+
+.bottom-nav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 15;
+  background: var(--gray-deep);
+  padding: 8px 8px max(14px, env(safe-area-inset-bottom));
+  border-top: 1px solid #2F3136;
+}
+.bottom-nav-inner { max-width: 480px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.nav-btn {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 11px; font-weight: 600; transition: color .2s ease, transform .15s ease;
+}
+.nav-btn:active { transform: scale(.92); }
+.nav-btn.active { color: var(--yellow); font-weight: 700; }
+.nav-icon { position: relative; display: flex; }
+.nav-dot {
+  position: absolute; top: -2px; right: -4px; width: 9px; height: 9px; border-radius: 50%;
+  background: var(--yellow); border: 2px solid var(--gray-deep);
+}
+
+/* Shared bits used by several screens */
+.page-title { margin: 0; font-size: 28px; font-weight: 800; letter-spacing: -0.5px; }
+.page-sub { margin: 4px 0 0; font-size: 14px; color: var(--muted); }
+.panel { background: var(--gray-2); border-radius: 22px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.panel h2 { margin: 0; font-size: 16px; font-weight: 800; }
+.panel-light { background: var(--silver); color: var(--gray); }
+.muted { color: var(--muted); }
+.row-between { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+textarea.field { height: auto; min-height: 120px; padding: 14px 18px; resize: vertical; line-height: 1.45; }

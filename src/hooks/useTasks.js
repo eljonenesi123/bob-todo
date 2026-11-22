@@ -83,5 +83,5 @@ export function useTasks() {
     if (error) load()
   }, [load])
 
-  return { loading, todayTasks, toggle, addTask, removeTask }
+  return { loading, tasks, completions, today, todayTasks, toggle, addTask, removeTask }
 }
