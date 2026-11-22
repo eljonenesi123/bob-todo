@@ -12,7 +12,7 @@ const TABS = [
   { id: 'nudges', label: 'Nudges' },
 ]
 
-export default function BottomNav({ tab, onChange, notesDot }) {
+export default function BottomNav({ tab, onChange, notesDot, nudgesDot }) {
   return (
     <nav className="bottom-nav" aria-label="Main">
       <div className="bottom-nav-inner">
@@ -29,6 +29,7 @@ export default function BottomNav({ tab, onChange, notesDot }) {
                 {ICONS[t.id]}
               </svg>
               {t.id === 'notes' && notesDot && <span className="nav-dot" aria-label="New" />}
+              {t.id === 'nudges' && nudgesDot && <span className="nav-dot" aria-label="Needs attention" />}
             </span>
             {t.label}
           </button>

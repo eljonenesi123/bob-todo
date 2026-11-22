@@ -3,7 +3,7 @@
 //   SB_SECRET_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
-
+s
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SB_SECRET_KEY')!, {
   auth: { persistSession: false },
 })
@@ -135,7 +135,7 @@ function message(kind: string, ctx: { name: string; style: string; total: number
       }
     case 'big3':
       if (bigLeft === 0) return null
-      return { title: 'Your Big 3 is waiting ⭐', body: `${plural(bigLeft, 'Big 3 task')} still open. You've got time.` }
+      return { title: 'Your Big three are waiting ⭐', body: `${plural(bigLeft, 'Big three task')} still open. You've got time.` }
     case 'streak':
       if (ctx.streak < 3 || done > 0 || total === 0) return null
       return { title: 'Keep your streak alive 🔥', body: `${ctx.streak} days in a row. One task keeps it going.` }
@@ -154,20 +154,24 @@ function message(kind: string, ctx: { name: string; style: string; total: number
 }
 
 // ---------- sending ----------
+// Returns how many devices accepted the push (0 = nobody got it)
 async function sendToAll(subs: Sub[], payload: Record<string, unknown>) {
-  await Promise.all(subs.map(async (s) => {
+  const results = await Promise.all(subs.map(async (s) => {
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
         JSON.stringify(payload),
         { TTL: 3600 },
       )
+      return 1
     } catch (e) {
       const code = (e as { statusCode?: number }).statusCode
       if (code === 404 || code === 410) await db.from('push_subscriptions').delete().eq('id', s.id)
       else console.error('push failed', code, (e as { body?: string }).body)
+      return 0
     }
   }))
+  return results.reduce((a, b) => a + b, 0)
 }
 
 // Returns true only the first time (kind, ref) is logged for that user and day → no duplicates
@@ -177,9 +181,10 @@ async function once(userId: string, kind: string, ref: string, date: string) {
 }
 
 // deno-lint-ignore no-explicit-any
-async function handleUser(p: any, subs: Sub[], names: Map<string, string>, sent: string[]) {
+type Profile = any
+
+async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, sent: string[], admins: Profile[], byUser: Map<string, Sub[]>) {
   const now = local(p.timezone || 'Europe/Tirane')
-  if (inQuiet(now.minutes, p.quiet_start ?? '22:30', p.quiet_end ?? '08:00')) return
 
   const [{ data: tasks }, { data: comps }] = await Promise.all([
     db.from('tasks').select('*').eq('user_id', p.id).eq('archived', false),
@@ -194,26 +199,50 @@ async function handleUser(p: any, subs: Sub[], names: Map<string, string>, sent:
   const bigLeft = today.due.filter((x) => x.is_big3 && !today.doneIds.has(x.id)).length
   const st = streak(t, c, now.date)
   const name = (p.display_name && !p.display_name.includes('@')) ? p.display_name : ''
-  const push = (payload: Record<string, unknown>, label: string) => {
-    sent.push(`${p.id.slice(0, 6)}:${label}`)
-    return sendToAll(subs, { badge: left, url: './', ...payload })
+  const push = async (payload: Record<string, unknown>, label: string) => {
+    const delivered = await sendToAll(subs, { badge: left, url: './', ...payload })
+    sent.push(`${p.id.slice(0, 6)}:${label}${delivered ? '' : ':failed'}`)
+    return delivered
   }
+
+  // 0. She finished her day → tell Eljon, only if she turned sharing on (his quiet hours apply)
+  if (p.share_day_done && total > 0 && left === 0) {
+    for (const a of admins) {
+      const aSubs = byUser.get(a.id) ?? []
+      if (a.id === p.id || !aSubs.length) continue
+      const aNow = local(a.timezone || 'Europe/Tirane')
+      if (inQuiet(aNow.minutes, a.quiet_start ?? '22:30', a.quiet_end ?? '08:00')) continue
+      if (await once(a.id, 'her_day_done', p.id, now.date)) {
+        const who = name || 'She'
+        const n = await sendToAll(aSubs, { title: `🎉 ${who} finished her day`, body: `${total} of ${total} done. Maybe leave her a note?`, tag: `done-${p.id}`, url: './' })
+        sent.push(`${a.id.slice(0, 6)}:her_day_done${n ? '' : ':failed'}`)
+      }
+    }
+  }
+
+  if (!subs.length) return // her phone isn't connected: nothing else to send
+  if (inQuiet(now.minutes, p.quiet_start ?? '22:30', p.quiet_end ?? '08:00')) return
 
   // 1. Surprise notes whose time has come (even when snoozed: he chose the moment)
   const { data: notes } = await db.from('notes').select('id, author_id')
     .eq('recipient_id', p.id).eq('kind', 'surprise').is('notified_at', null).is('opened_at', null)
     .lte('deliver_at', new Date().toISOString())
   for (const n of notes ?? []) {
-    await db.from('notes').update({ notified_at: new Date().toISOString() }).eq('id', n.id)
-    await push({ title: '💌 Bob has a message for you', body: `From ${names.get(n.author_id) || 'someone special'}. Open Bob to read it.`, tag: `note-${n.id}` }, 'surprise')
+    const ok = await push({ title: '💌 Bob has a message for you', body: `From ${names.get(n.author_id) || 'someone special'}. Open Bob to read it.`, tag: `note-${n.id}` }, 'surprise')
+    // Only mark it sent when a device really accepted it; otherwise retry on the next run
+    const { error } = await db.from('notes').update(ok
+      ? { notified_at: new Date().toISOString(), notify_error: null }
+      : { notify_error: 'Her phone didn’t accept the notification' }).eq('id', n.id)
+    // notify_error comes with SQL 05; without it, still mark a sent note so it isn't sent again
+    if (error && ok) await db.from('notes').update({ notified_at: new Date().toISOString() }).eq('id', n.id)
   }
 
   // 2. Rewards that just unlocked
   const { data: rewards } = await db.from('rewards').select('id, title, streak_required')
     .eq('recipient_id', p.id).is('notified_at', null).is('claimed_at', null).lte('streak_required', st)
   for (const r of rewards ?? []) {
-    await db.from('rewards').update({ notified_at: new Date().toISOString() }).eq('id', r.id)
-    await push({ title: '🎁 Reward unlocked!', body: `${st}-day streak: "${r.title}" is ready to claim.`, tag: `reward-${r.id}` }, 'reward')
+    const ok = await push({ title: '🎁 Reward unlocked!', body: `${st}-day streak: "${r.title}" is ready to claim.`, tag: `reward-${r.id}` }, 'reward')
+    if (ok) await db.from('rewards').update({ notified_at: new Date().toISOString() }).eq('id', r.id)
   }
 
   if (p.snoozed_on === now.date) return
@@ -269,12 +298,7 @@ Deno.serve(async (req) => {
     db.from('profiles').select('*'),
     db.from('push_subscriptions').select('*'),
   ])
-  const debug = {
-    profiles: profiles?.length ?? 0,
-    devices: subs?.length ?? 0,
-    error: pErr?.message || sErr?.message || null,
-    keyType: (Deno.env.get('SB_SECRET_KEY') || '').slice(0, 10),
-  }
+  if (pErr || sErr) console.error('load failed', pErr?.message || sErr?.message)
   const byUser = new Map<string, Sub[]>()
   for (const s of (subs ?? []) as Sub[]) byUser.set(s.user_id, [...(byUser.get(s.user_id) ?? []), s])
   const names = new Map((profiles ?? []).map((p) => [p.id, p.display_name]))
@@ -286,14 +310,14 @@ Deno.serve(async (req) => {
       await sendToAll(list, { title: 'Bob says hi ☀️', body: 'Notifications are working!', tag: 'test', url: './' })
       sent.push(`${userId.slice(0, 6)}:test`)
     }
-    return Response.json({ ok: true, sent, debug })
+    return Response.json({ ok: true, sent })
   }
 
+  const admins = (profiles ?? []).filter((x) => x.role === 'admin')
   for (const p of profiles ?? []) {
-    const list = byUser.get(p.id)
-    if (!list?.length) continue
+    // Everyone is checked (her day-done push to Eljon works even if her own phone isn't connected)
     try {
-      await handleUser(p, list, names, sent)
+      await handleUser(p, byUser.get(p.id) ?? [], names, sent, admins, byUser)
     } catch (e) {
       console.error('user failed', p.id, e)
     }

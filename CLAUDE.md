@@ -82,7 +82,8 @@ src/Shell.css              Bottom nav, shared .page-title/.panel/.tab-screen, pa
 src/context/tasks.js           TasksContext + useTaskData()
 src/context/TasksProvider.jsx  Wraps useTasks(); sets app icon badge = tasks left today
 src/hooks/useTasks.js      Fetch tasks/completions/subtasks, realtime sync, todayTasks, planFor(iso),
-                           toggle, addTask (with steps + due_on), removeTask (archive), addStep, toggleStep, removeStep
+                           toggle, addTask (with steps + due_on), updateTask, moveToTomorrow, reorder (positions),
+                           removeTask (archive), addStep, toggleStep, removeStep
 src/hooks/useProfile.js    Own profile, update(); auto-saves browser timezone
 src/hooks/useNotes.js      Notes/rewards for the signed-in user; openNote, claimReward, author names
 
@@ -92,25 +93,30 @@ src/lib/stats.js           dayStatus, currentStreak, bestStreak, weekBars, month
 src/lib/quotes.js          20 original quotes; quoteOfTheDay() by day-of-year (SAME list as the Edge Function)
 src/lib/categories.js      CATEGORIES + REPEATS
 src/lib/pwa.js             isStandalone, isIOS, notificationsSupported, install prompt, setup-done flag
-src/lib/push.js            enablePush / disablePush / syncPush, saves subscription to push_subscriptions
+src/lib/push.js            enablePush / disablePush / syncPush / deviceStatus. "On" means saved in push_subscriptions for
+                           this account, not just allowed; a subscription owned by another account is replaced
+src/lib/focus.js           Focus timer session in localStorage (survives closing the app)
 
 src/screens/Welcome.*      Email → 6-digit code sign-in ("Sign in or create your account")
 src/screens/Setup.*        First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
 src/screens/Today.*        Planner page: date masthead, tally, day strip (today + 5), legal-pad list, Big three, steps
 src/screens/Progress.*     Streak numeral + tally marks, week bars, pen-marked month calendar, next reward
 src/screens/Notes.*        Her view: surprises, locked-note count, rewards (claim), opened notes
-src/screens/NotesAdmin.jsx Eljon's view: write notes (day_complete / surprise with time), rewards, statuses
-src/screens/Nudges.*       Notifications switch + errors, snooze today, schedule, quote time, nudge style, quiet hours, name, sign out
+src/screens/NotesAdmin.jsx Eljon's view: write notes (day_complete / surprise with time), rewards, real delivery status
+src/screens/Nudges.*       Notifications switch (checks the database) + errors, snooze, "Tell Eljon when I finish my day",
+                           schedule, nudge style, times, name, sign out
 
-src/components/TaskRow.jsx     Ruled row: margin checkbox, pen strike, highlighter for Big three, steps panel, swipe-left delete
-src/components/AddTaskSheet.jsx Paper bottom sheet: title, When (today..+5), Big three, Repeat, Steps, Remind at, Category
+src/components/TaskRow.jsx     Ruled row: margin checkbox, pen strike, Big three highlighter, steps panel (+ Edit / Focus buttons),
+                               swipe-left delete, hold (or right-click) to edit, drag the dots to reorder
+src/components/AddTaskSheet.jsx Paper bottom sheet for new AND edit (editing prop): title, When, Big three, Repeat, Steps (new only),
+                               Remind at, Category; edit adds Move to tomorrow + Delete
+src/components/FocusTimer.*     Full-screen focus timer (10/25/45 min, pause, five more, mark done)
 src/components/DayStrip.jsx     Today + next 5 days with task-count dots
 src/components/DayComplete.*    Full-screen celebration + sealed note to open
-src/components/BottomNav.jsx    4 tabs, yellow dot on Notes for new surprises
-(EmptyState.jsx, ProgressCard.jsx, App.css: unused leftovers, safe to delete)
+src/components/BottomNav.jsx    4 tabs, yellow dot on Notes for new surprises, on Nudges when this phone couldn't connect
 
 supabase/functions/send-nudges/index.ts  The nudge engine (see §7)
-supabase/sql/01..04_*.sql                Schema history (all applied, see §5)
+supabase/sql/01..05_*.sql                Schema history (05 must be run before deploying the 2026-11-22 batch, see §9)
 ```
 
 ---
@@ -119,15 +125,15 @@ supabase/sql/01..04_*.sql                Schema history (all applied, see §5)
 
 All tables have **RLS on**. Users only see their own rows unless stated.
 
-- **profiles**: `id` (= auth user), `display_name`, `role` ('user'|'admin'), `timezone`, `quiet_start` (22:30), `quiet_end` (08:00), `nudge_style` ('gentle'|'sweet_hype'|'tough_love'), `snoozed_on` (date), `quote_time` (08:00). Created by trigger `handle_new_user` on sign-up.
-  - Users may only UPDATE these columns: display_name, timezone, quiet_start, quiet_end, nudge_style, snoozed_on, quote_time (column grants, so nobody can make themselves admin).
+- **profiles**: `id` (= auth user), `display_name`, `role` ('user'|'admin'), `timezone`, `quiet_start` (22:30), `quiet_end` (08:00), `nudge_style` ('gentle'|'sweet_hype'|'tough_love'), `snoozed_on` (date), `quote_time` (08:00), `share_day_done` (bool, her opt-in). Created by trigger `handle_new_user` on sign-up.
+  - Users may only UPDATE these columns: display_name, timezone, quiet_start, quiet_end, nudge_style, snoozed_on, quote_time, share_day_done (column grants, so nobody can make themselves admin).
   - Admin can read all profiles (`is_admin()` security-definer function). A user can read the profile of anyone who wrote them a note.
-- **tasks**: `title`, `category`, `is_big3`, `repeat` ('once'|'daily'|'weekdays'|'weekly'), `remind_at` (time), `due_on` (date: the day it's planned for / start date), `archived` (soft delete).
+- **tasks**: `title`, `category`, `is_big3`, `repeat` ('once'|'daily'|'weekdays'|'weekly'), `remind_at` (time), `due_on` (date: the day it's planned for / start date), `archived` (soft delete), `position` (list order).
 - **task_completions**: `(task_id, done_on)` primary key. One row per task per day done. Streaks/history come from this.
 - **subtasks** ("steps"): `task_id`, `title`, `done_at` (persistent, not per day), `position`.
-- **notes**: `author_id`, `recipient_id`, `body`, `kind` ('day_complete'|'surprise'), `deliver_at`, `notified_at`, `opened_at`. Recipient can only update `opened_at` and only sees surprises once `deliver_at <= now()`.
+- **notes**: `author_id`, `recipient_id`, `body`, `kind` ('day_complete'|'surprise'), `deliver_at`, `notified_at` (set only after a device accepted the push), `notify_error` (last failed try), `opened_at`. Recipient can only update `opened_at` and only sees surprises once `deliver_at <= now()`.
 - **rewards**: `title`, `streak_required`, `notified_at`, `claimed_at`. Recipient can only update `claimed_at`.
-- **push_subscriptions**: one row per device (`endpoint` unique, `p256dh`, `auth`).
+- **push_subscriptions**: one row per device (`endpoint` unique, `p256dh`, `auth`). `push_device_count(person)` (security definer) tells the admin, or the person themself, how many devices they have.
 - **nudge_log**: `(user_id, kind, ref, sent_on)` unique. Server-only (RLS on, no policies). Prevents duplicate pushes.
 - Realtime publication includes: tasks, task_completions, subtasks.
 - Cron: job `bob-nudges` runs every 5 minutes → `net.http_post` to the Edge Function with header `x-cron-secret`.
@@ -156,10 +162,12 @@ All tables have **RLS on**. Users only see their own rows unless stated.
 
 ## 7. Notifications (Edge Function `send-nudges`)
 
-Runs every 5 min. For each profile with a push subscription, in her local timezone:
+Runs every 5 min. For every profile, in their local timezone:
 
-0. Skip everything during quiet hours (it fires when they end, within a 2h window).
-1. **Surprise notes** whose `deliver_at` has passed (ignore snooze) → "Bob has a message for you".
+- **Her day is done** and `share_day_done` is on: one push to each admin device ("🎉 Ana finished her day"), respecting the admin's quiet hours, once per day. Works even if her own phone isn't connected.
+- Everything below needs her to have a device; without one nothing is sent (and notes stay unsent, not falsely marked).
+0. Skip during quiet hours (it fires when they end, within a 2h window).
+1. **Surprise notes** whose `deliver_at` has passed (ignore snooze) → "Bob has a message for you". `notified_at` is set only if a device accepted it; otherwise `notify_error` is set and it retries next run. A note she opens in the app first is never pushed.
 2. **Rewards** just unlocked by the streak → "Reward unlocked!"
 3. Stop here if `snoozed_on = today`.
 4. **Quote of the day** at `quote_time` (default 08:00): quote + "N tasks on today's list".
@@ -179,9 +187,19 @@ select net.http_post(
 -- then:
 select id, status_code, content::text from net._http_response order by id desc limit 3;
 ```
-A test reply includes `debug: { profiles, devices, error, keyType }`.
+A test reply is `{ ok, sent }` (the old `debug` block was removed).
 
-Troubleshooting map: 401 `UNAUTHORIZED_NO_AUTH_HEADER` → Verify JWT is on. `Invalid API key` → `SB_SECRET_KEY` wrong (copy the real key with the copy button, not the masked text). `devices: 0` → phone not subscribed (check `VITE_VAPID_PUBLIC_KEY` GitHub secret, rebuild, reopen app twice, toggle Nudges). iOS updates the PWA only on the second launch after a deploy.
+**"Did she get my note?"** One row that answers most questions:
+```sql
+select now() as now_utc,
+  (select count(*) from push_subscriptions s where s.user_id = n.recipient_id) as her_devices,
+  n.deliver_at, n.notified_at, n.notify_error, n.opened_at,
+  (select status || ' at ' || start_time from cron.job_run_details d join cron.job j on j.jobid = d.jobid
+     where j.jobname = 'bob-nudges' order by start_time desc limit 1) as last_cron_run,
+  (select status_code || ' ' || left(content::text, 80) from net._http_response order by id desc limit 1) as last_function_reply
+from notes n order by created_at desc limit 1;
+```
+Troubleshooting map: `her_devices = 0` → her phone isn't connected: Bob → Nudges → switch off and on (2026-11-22: her phone's old subscription belonged to another account and the save failed silently; the app now replaces it automatically). 401 `UNAUTHORIZED_NO_AUTH_HEADER` → Verify JWT is on. `Invalid API key` → `SB_SECRET_KEY` wrong (copy the real key with the copy button, not the masked text). `notified_at` set but nothing on the lock screen → iPhone Settings → Notifications → Bob (Lock Screen, Immediate delivery, no Focus). iOS updates the PWA only on the second launch after a deploy.
 
 ---
 
@@ -195,8 +213,8 @@ Troubleshooting map: 401 `UNAUTHORIZED_NO_AUTH_HEADER` → Verify JWT is on. `In
 - **Avoid** (generic AI tells): ALL-CAPS eyebrow labels, middle-dot meta strings ("A · B"), emoji in the UI (fine in push titles), identical rounded cards everywhere, fade-and-slide-up on every section, gradient washes, `→` on buttons, generic fonts (Inter, Plus Jakarta), lorem/filler copy.
 - Copy: plain, warm, sentence case, active verbs ("Add to today", "Write a task"). Errors say what happened and how to fix it.
 - Accessibility floor: real buttons/inputs, `aria` on icon buttons, 44px touch targets, focus ring (yellow), `prefers-reduced-motion` respected, text contrast ≥ 4.5:1.
-- Progress, Notes (her view) and Nudges use the paper page pattern: a short heading on the desk, then a `.pad` of ruled `.pad-line`s with a 52px margin column. The pad kit (.pad, .pad-h, .ruled, .row-margin, .box, .hl, .pill, .line-input, .switch, .btn-ink) lives in `Today.css`; the page-level pieces live in `Shell.css`.
-- Still only partly in the new look: Welcome, Setup, Day complete, NotesAdmin (Eljon's Notes tab, still uses dark `.panel`s and the admin rules at the bottom of `Notes.css`).
+- Every screen uses the paper page pattern (Today, Progress, Notes, Notes for her, Nudges, Welcome, Setup, Day complete, Focus): a short heading on the desk, then a `.pad` of ruled `.pad-line`s with a 52px margin column. The pad kit (.pad, .pad-h, .ruled, .row-margin, .box, .hl, .pill, .line-input, .switch, .btn-ink) lives in `Today.css`; the page-level pieces live in `Shell.css`.
+- Generic paper helpers (.pad-block, .field-label, .field-hint, .ink-btn, .pad-line) live in `Shell.css`; envelope and letter styles live in `Notes.css` and are reused by Day complete.
 
 ---
 
@@ -212,13 +230,17 @@ Must verify after the last commit (`5400f36 Steps, 5-day planning, daily quote, 
 - [x] New look is live (checked 2026-11-22: the Pages bundle contains the Today page strings)
 - [ ] New look reviewed on iPhone + PC; fix visual bugs from screenshots (needs Eljon on the real devices)
 
+Batch of 2026-11-22 (honest Nudges switch, delivery status, quote fix, cleanup, all screens restyled, edit task, move to tomorrow, reorder, focus timer, "she finished her day"). To ship it, in this order:
+- [ ] Run `supabase/sql/05_order_sharing_delivery.sql` in the SQL Editor
+- [ ] Redeploy the Edge Function (paste `supabase/functions/send-nudges/index.ts`, Deploy, check Verify JWT is still off)
+- [ ] Push to main
+- [ ] Test on her iPhone: hold a task to edit, drag the dots, Focus on a task, Nudges switch, "Tell Eljon" switch
+
 Backlog (ask Eljon to prioritise; her feedback decides):
-- Restyle Welcome, Setup, Day complete and NotesAdmin to the paper/highlighter system
-- Edit a task (long-press), "Move to tomorrow", drag to reorder
-- Focus timer on a task, nightly 1-tap mood check-in
+- Nightly 1-tap mood check-in
 - Albanian/English language switch (Eljon builds multilingual sites: EN/SQ/DE)
-- Optional "She finished her day" push to Eljon (only if she agrees)
-- Remove the `debug` block from the Edge Function test reply; delete unused leftovers (EmptyState, ProgressCard, App.css, src/assets)
+- Keyboard way to reorder tasks (drag is pointer-only today)
+- Focus timer can't notify when it ends while Bob is closed (iOS web apps can't schedule local notifications)
 
 ## 10. Definition of done for any change
 1. Works at 390px wide first, then desktop.

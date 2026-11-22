@@ -2,10 +2,14 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CATEGORIES, REPEATS } from '../lib/categories'
 
-export default function AddTaskSheet({ open, onClose, onAdd, bigCount, days, day }) {
+// New task, or edit an existing one when `editing` is a task
+export default function AddTaskSheet({ open, editing, onClose, onAdd, onSave, onMoveTomorrow, onDelete, bigCount, days, day }) {
   return (
     <AnimatePresence>
-      {open && <Sheet key="sheet" onClose={onClose} onAdd={onAdd} bigCount={bigCount} days={days} day={day} />}
+      {open && (
+        <Sheet key={editing?.id ?? 'new'} editing={editing} onClose={onClose} onAdd={onAdd} onSave={onSave}
+          onMoveTomorrow={onMoveTomorrow} onDelete={onDelete} bigCount={bigCount} days={days} day={day} />
+      )}
     </AnimatePresence>
   )
 }
@@ -25,14 +29,18 @@ function Pills({ legend, options, value, onChange }) {
 }
 
 // Mounted fresh every time the sheet opens, so the form always starts empty
-function Sheet({ onClose, onAdd, bigCount, days, day }) {
-  const [form, setForm] = useState({ title: '', is_big3: false, repeat: 'once', remind_at: '', category: 'personal', due_on: day })
+function Sheet({ editing, onClose, onAdd, onSave, onMoveTomorrow, onDelete, bigCount, days, day }) {
+  const [form, setForm] = useState(() => editing
+    ? { title: editing.title, is_big3: editing.is_big3, repeat: editing.repeat, remind_at: editing.remind_at?.slice(0, 5) ?? '', category: editing.category, due_on: editing.due_on ?? day }
+    : { title: '', is_big3: false, repeat: 'once', remind_at: '', category: 'personal', due_on: day })
   const [steps, setSteps] = useState([])
   const [stepDraft, setStepDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const isToday = form.due_on === days[0]?.iso
-  const bigFull = isToday && bigCount >= 3
+  const bigFull = isToday && bigCount >= 3 && !editing?.is_big3
+  const tomorrow = days[1]?.iso
+  const canMove = editing && editing.repeat === 'once' && !editing.done && editing.due_on !== tomorrow
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
 
@@ -48,12 +56,28 @@ function Sheet({ onClose, onAdd, bigCount, days, day }) {
     if (!form.title.trim()) return
     setBusy(true)
     try {
-      const pending = stepDraft.trim() ? [...steps, stepDraft.trim()] : steps
-      await onAdd({ ...form, title: form.title.trim(), remind_at: form.remind_at || null, steps: pending })
+      const fields = { ...form, title: form.title.trim(), remind_at: form.remind_at || null }
+      if (editing) {
+        await onSave(editing, fields)
+      } else {
+        const pending = stepDraft.trim() ? [...steps, stepDraft.trim()] : steps
+        await onAdd({ ...fields, steps: pending })
+      }
       onClose()
     } catch {
       setError('That task wasn’t saved. Check your connection and try again.')
     } finally {
+      setBusy(false)
+    }
+  }
+
+  async function run(action) {
+    setBusy(true)
+    try {
+      await action(editing)
+      onClose()
+    } catch {
+      setError('That didn’t work. Check your connection and try again.')
       setBusy(false)
     }
   }
@@ -65,17 +89,17 @@ function Sheet({ onClose, onAdd, bigCount, days, day }) {
       <motion.div className="sheet-backdrop" onClick={onClose}
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
       <motion.form
-        className="sheet paper" onSubmit={submit} aria-label="New task"
+        className="sheet paper" onSubmit={submit} aria-label={editing ? 'Edit task' : 'New task'}
         initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
         transition={{ type: 'spring', stiffness: 380, damping: 38 }}
       >
         <div className="sheet-handle" aria-hidden="true" />
         <div className="sheet-head">
-          <h2>New task</h2>
+          <h2>{editing ? 'Edit task' : 'New task'}</h2>
           <button type="button" className="sheet-close" onClick={onClose}>Cancel</button>
         </div>
 
-        <input className="line-input big-input" autoFocus maxLength={200} aria-label="Task"
+        <input className="line-input big-input" autoFocus={!editing} maxLength={200} aria-label="Task"
           value={form.title} onChange={(e) => set('title', e.target.value)} placeholder="What needs doing?" />
 
         <Pills legend="When" options={dayOptions} value={form.due_on} onChange={(v) => set('due_on', v)} />
@@ -91,7 +115,7 @@ function Sheet({ onClose, onAdd, bigCount, days, day }) {
 
         <Pills legend="Repeat" options={REPEATS} value={form.repeat} onChange={(v) => set('repeat', v)} />
 
-        {form.repeat === 'once' && (
+        {form.repeat === 'once' && !editing && (
           <fieldset className="pills-group">
             <legend>Steps <span className="optional">optional</span></legend>
             {steps.length > 0 && (
@@ -126,8 +150,16 @@ function Sheet({ onClose, onAdd, bigCount, days, day }) {
 
         {error && <p className="error on-paper">{error}</p>}
         <button className="btn btn-ink" disabled={busy || !form.title.trim()}>
-          {busy ? 'Adding…' : isToday ? 'Add to today' : `Add to ${dayOptions.find((d) => d.id === form.due_on)?.label ?? 'that day'}`}
+          {editing
+            ? (busy ? 'Saving…' : 'Save changes')
+            : busy ? 'Adding…' : isToday ? 'Add to today' : `Add to ${dayOptions.find((d) => d.id === form.due_on)?.label ?? 'that day'}`}
         </button>
+        {editing && (
+          <div className="sheet-more">
+            {canMove && <button type="button" className="ink-btn" disabled={busy} onClick={() => run(onMoveTomorrow)}>Move to tomorrow</button>}
+            <button type="button" className="ink-btn danger" disabled={busy} onClick={() => run(onDelete)}>Delete task</button>
+          </div>
+        )}
       </motion.form>
     </>
   )

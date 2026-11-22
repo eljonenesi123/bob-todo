@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useTaskData } from './context/tasks'
 import { useProfile } from './hooks/useProfile'
@@ -25,7 +25,14 @@ export default function Shell({ user }) {
   const notes = useNotes(user.id)
   const [celebrated, setCelebrated] = useState(readCelebrated)
 
-  useEffect(() => { syncPush() }, [])
+  // A dot on Nudges when notifications are allowed but this phone couldn't be connected
+  const [pushIssue, setPushIssue] = useState(false)
+  useEffect(() => {
+    let active = true
+    syncPush().then((ok) => { if (active) setPushIssue(!ok) })
+    return () => { active = false }
+  }, [])
+  const onPushFixed = useCallback(() => setPushIssue(false), [])
 
   const total = todayTasks.length
   const allDone = !loading && total > 0 && todayTasks.every((t) => t.done)
@@ -40,7 +47,7 @@ export default function Shell({ user }) {
     today: <Today />,
     progress: <Progress notes={notes} />,
     notes: isAdmin ? <NotesAdmin userId={user.id} /> : <Notes notes={notes} allDone={allDone} />,
-    nudges: <Nudges profile={profile} update={update} />,
+    nudges: <Nudges profile={profile} update={update} onPushFixed={onPushFixed} />,
   }
 
   return (
@@ -57,7 +64,7 @@ export default function Shell({ user }) {
         </motion.div>
       </AnimatePresence>
 
-      <BottomNav tab={tab} onChange={setTab} notesDot={!isAdmin && notes.hasNew} />
+      <BottomNav tab={tab} onChange={setTab} notesDot={!isAdmin && notes.hasNew} nudgesDot={pushIssue} />
 
       <AnimatePresence>
         {showCelebration && (

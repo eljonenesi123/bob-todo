@@ -1,11 +1,13 @@
-import { useMemo, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useMemo, useRef, useState } from 'react'
+import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
 import { addDays, greeting } from '../lib/dates'
 import { quoteOfTheDay } from '../lib/quotes'
 import DayStrip from '../components/DayStrip'
 import TaskRow from '../components/TaskRow'
 import AddTaskSheet from '../components/AddTaskSheet'
+import FocusTimer from '../components/FocusTimer'
+import { readFocus } from '../lib/focus'
 import './Today.css'
 
 const PLAN_AHEAD = 5
@@ -19,11 +21,36 @@ const STARTERS = [
 const byDone = (a, b) => Number(a.done) - Number(b.done)
 const dateOf = (iso) => new Date(iso + 'T12:00:00')
 
+// A ruled list she can reorder by dragging the grip on the right of each line
+function RowList({ tasks, big, onReorder, rowProps }) {
+  const ids = tasks.map((t) => t.id)
+  const key = ids.join()
+  const [order, setOrder] = useState({ key, ids })
+  // When the tasks themselves change (added, done, synced), start from their order again
+  const current = order.key === key ? order.ids : ids
+  if (order.key !== key && order.ids.join() !== key) setOrder({ key, ids })
+  // The order after the last drag step, saved when she lets go
+  const dragged = useRef(null)
+  const byId = new Map(tasks.map((t) => [t.id, t]))
+
+  return (
+    <Reorder.Group as="ul" axis="y" className="ruled" values={current} onReorder={(next) => { dragged.current = next; setOrder({ key, ids: next }) }}>
+      <AnimatePresence initial={false}>
+        {current.map((id) => byId.get(id)).filter(Boolean).map((t) => (
+          <TaskRow key={t.id} task={t} big={big} {...rowProps} onDrop={() => { if (dragged.current) onReorder(dragged.current); dragged.current = null }} />
+        ))}
+      </AnimatePresence>
+    </Reorder.Group>
+  )
+}
+
 export default function Today() {
   const data = useTaskData()
-  const { loading, today, todayTasks, planFor, toggle, addTask, removeTask, addStep, toggleStep, removeStep } = data
+  const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, addStep, toggleStep, removeStep } = data
   const [selected, setSelected] = useState(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [editing, setEditing] = useState(null)
+  const [focus, setFocus] = useState(readFocus)
 
   const day = selected && selected >= today ? selected : today
   const isToday = day === today
@@ -49,7 +76,17 @@ export default function Today() {
   const total = todayTasks.length
   const d = dateOf(day)
 
-  const rowProps = { today, future: !isToday, onToggle: toggle, onRemove: removeTask, onAddStep: addStep, onToggleStep: toggleStep, onRemoveStep: removeStep }
+  const edit = (task) => { setEditing(task); setSheetOpen(true) }
+  const startFocus = (task) => setFocus({ taskId: task.id, title: task.title, minutes: 25, endsAt: null, left: null })
+  const focusTask = focus && todayTasks.find((t) => t.id === focus.taskId)
+  function finishFocus(taskId) {
+    const t = todayTasks.find((x) => x.id === taskId)
+    if (t && !t.done) toggle(t)
+    setFocus(null)
+  }
+  const closeSheet = () => { setSheetOpen(false); setEditing(null) }
+
+  const rowProps = { today, future: !isToday, onToggle: toggle, onRemove: removeTask, onAddStep: addStep, onToggleStep: toggleStep, onRemoveStep: removeStep, onEdit: edit, onFocus: startFocus }
 
   return (
     <main className="today">
@@ -109,38 +146,38 @@ export default function Today() {
             {big.length > 0 && (
               <section className="pad-section">
                 <h2 className="pad-h">Big three</h2>
-                <ul className="ruled">
-                  <AnimatePresence initial={false}>
-                    {big.map((t) => <TaskRow key={t.id} task={t} big {...rowProps} />)}
-                  </AnimatePresence>
-                </ul>
+                <RowList tasks={big} big onReorder={reorder} rowProps={rowProps} />
               </section>
             )}
             {rest.length > 0 && (
               <section className="pad-section">
                 <h2 className="pad-h">{big.length ? 'Everything else' : isToday ? 'Today' : 'Planned'}</h2>
-                <ul className="ruled">
-                  <AnimatePresence initial={false}>
-                    {rest.map((t) => <TaskRow key={t.id} task={t} {...rowProps} />)}
-                  </AnimatePresence>
-                </ul>
+                <RowList tasks={rest} onReorder={reorder} rowProps={rowProps} />
               </section>
             )}
           </>
         )}
 
-        <button type="button" className="write-row" onClick={() => setSheetOpen(true)}>
+        <button type="button" className="write-row" onClick={() => { setEditing(null); setSheetOpen(true) }}>
           <span className="row-margin"><span className="pen" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
           </span></span>
           <span>{isToday ? 'Write a task' : `Plan something for ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}</span>
         </button>
 
-        {list.length > 0 && <p className="pad-hint">Swipe a line left to delete it.</p>}
+        {list.length > 0 && <p className="pad-hint">Hold a line to edit it. Drag the dots to move it. Swipe left to delete.</p>}
       </section>
 
-      <AddTaskSheet open={sheetOpen} onClose={() => setSheetOpen(false)} onAdd={addTask}
+      <AddTaskSheet open={sheetOpen} editing={editing} onClose={closeSheet} onAdd={addTask}
+        onSave={updateTask} onMoveTomorrow={moveToTomorrow} onDelete={removeTask}
         bigCount={todayTasks.filter((t) => t.is_big3).length} days={days} day={day} />
+
+      <AnimatePresence>
+        {focus && (
+          <FocusTimer key={focus.taskId} session={focus} canFinish={!!focusTask && !focusTask.done}
+            onDone={finishFocus} onClose={() => setFocus(null)} />
+        )}
+      </AnimatePresence>
     </main>
   )
 }

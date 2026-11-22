@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toISO, addDays, isDueOn } from '../lib/dates'
 
+// List order: the place she dragged it to, then oldest first
+const byPosition = (a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at)
+// Column added in SQL 05; if it isn't there yet, save without it instead of failing
+const missingColumn = (error) => error && (error.code === 'PGRST204' || error.code === '42703')
+
 async function fetchAll() {
   const now = toISO()
   const [t, c, s] = await Promise.all([
@@ -20,7 +25,7 @@ export function useTasks() {
   const [today, setToday] = useState(toISO())
 
   const apply = useCallback(({ t, c, s, now }) => {
-    if (!t.error) setTasks(t.data)
+    if (!t.error) setTasks([...t.data].sort(byPosition))
     if (!c.error) setCompletions(c.data)
     if (!s.error) setSubtasks(s.data)
     setToday(now)
@@ -94,8 +99,11 @@ export function useTasks() {
   const toggle = useCallback((task) => setDone(task, !task.done), [setDone])
 
   const addTask = useCallback(async ({ steps = [], ...fields }) => {
-    const { data, error } = await supabase.from('tasks')
-      .insert({ ...fields, due_on: fields.due_on ?? toISO() }).select().single()
+    const row = { ...fields, due_on: fields.due_on ?? toISO() }
+    const position = tasks.reduce((max, t) => Math.max(max, t.position ?? 0), 0) + 1
+    let res = await supabase.from('tasks').insert({ ...row, position }).select().single()
+    if (missingColumn(res.error)) res = await supabase.from('tasks').insert(row).select().single()
+    const { data, error } = res
     if (error) throw error
     setTasks((ts) => (ts.some((t) => t.id === data.id) ? ts : [...ts, data]))
     const clean = steps.map((s) => s.trim()).filter(Boolean)
@@ -104,7 +112,31 @@ export function useTasks() {
       const res = await supabase.from('subtasks').insert(rows).select()
       if (!res.error) setSubtasks((ss) => [...ss, ...res.data])
     }
-  }, [])
+  }, [tasks])
+
+  // Edit title, day, Big three, repeat, reminder, category
+  const updateTask = useCallback(async (task, fields) => {
+    setTasks((ts) => ts.map((t) => (t.id === task.id ? { ...t, ...fields } : t)))
+    const { error } = await supabase.from('tasks').update(fields).eq('id', task.id)
+    if (error) { load(); throw error }
+  }, [load])
+
+  // A one-off task goes to tomorrow's page (also takes it off today when it was carried over)
+  const moveToTomorrow = useCallback((task) => updateTask(task, { due_on: addDays(today, 1) }), [updateTask, today])
+
+  // Save a new order for the tasks she just dragged (ids in their new order)
+  const reorder = useCallback(async (ids) => {
+    // Reuse the positions this list already had, in sorted order; if some are equal
+    // (old tasks all start at 0), spread them out from the smallest one
+    let slots = ids.map((id) => tasks.find((t) => t.id === id)?.position ?? 0).sort((a, b) => a - b)
+    if (new Set(slots).size < slots.length) slots = slots.map((_, i) => slots[0] + i)
+    const next = new Map(ids.map((id, i) => [id, slots[i]]))
+    const changed = tasks.filter((t) => next.has(t.id) && next.get(t.id) !== (t.position ?? 0))
+    if (!changed.length) return
+    setTasks((ts) => ts.map((t) => (next.has(t.id) ? { ...t, position: next.get(t.id) } : t)).sort(byPosition))
+    const results = await Promise.all(changed.map((t) => supabase.from('tasks').update({ position: next.get(t.id) }).eq('id', t.id)))
+    if (results.some((r) => r.error)) load()
+  }, [tasks, load])
 
   const removeTask = useCallback(async (task) => {
     setTasks((ts) => ts.filter((t) => t.id !== task.id))
@@ -146,6 +178,6 @@ export function useTasks() {
 
   return {
     loading, tasks, completions, today, todayTasks, planFor,
-    toggle, addTask, removeTask, addStep, toggleStep, removeStep,
+    toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, addStep, toggleStep, removeStep,
   }
 }

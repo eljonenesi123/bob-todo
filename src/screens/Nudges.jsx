@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import { toISO } from '../lib/dates'
 import { isIOS, isStandalone, notificationsSupported } from '../lib/pwa'
-import { enablePush, disablePush, getSubscription } from '../lib/push'
+import { enablePush, disablePush, deviceStatus } from '../lib/push'
 import './Nudges.css'
 
 const SCHEDULE = [
@@ -29,10 +29,9 @@ function Switch({ on, label, disabled, onClick }) {
   )
 }
 
-export default function Nudges({ profile, update }) {
-  const supported = notificationsSupported()
-  const [permission, setPermission] = useState(supported ? Notification.permission : 'unsupported')
-  const [subscribed, setSubscribed] = useState(false)
+export default function Nudges({ profile, update, onPushFixed }) {
+  // 'on' only when Bob's server really has this device; see deviceStatus()
+  const [status, setStatus] = useState(notificationsSupported() ? 'checking' : 'unsupported')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const today = toISO()
@@ -40,33 +39,43 @@ export default function Nudges({ profile, update }) {
 
   useEffect(() => {
     let active = true
-    getSubscription().then((s) => { if (active) setSubscribed(!!s) }).catch(() => {})
+    async function check() {
+      try {
+        let s = await deviceStatus()
+        // Allowed and subscribed, but not saved for this account: repair it quietly
+        if (s === 'not-saved') s = (await enablePush()) === 'granted' ? 'on' : await deviceStatus()
+        if (active) { setStatus(s); if (s === 'on') onPushFixed?.() }
+      } catch (e) {
+        if (active) { setStatus('not-saved'); setError(e?.message || String(e)) }
+      }
+    }
+    check()
     return () => { active = false }
-  }, [])
+  }, [onPushFixed])
 
   async function turnOn() {
     setBusy(true)
     setError('')
     try {
       const result = await enablePush()
-      setSubscribed(result === 'granted')
-      if (result !== 'granted') setError(`Permission: ${result}`)
+      setStatus(result === 'granted' ? 'on' : result)
+      if (result === 'granted') onPushFixed?.()
     } catch (e) {
-      setSubscribed(false)
+      setStatus('not-saved')
       setError(e?.message || String(e))
     }
-    setPermission(supported ? Notification.permission : 'unsupported')
     setBusy(false)
   }
 
   async function turnOff() {
     setBusy(true)
     await disablePush().catch(() => {})
-    setSubscribed(false)
+    setStatus('off')
     setBusy(false)
   }
 
-  const on = permission === 'granted' && subscribed
+  const on = status === 'on'
+  const permission = status === 'denied' || status === 'unsupported' ? status : 'default'
 
   return (
     <main className="paper-page tab-screen nudges">
@@ -82,10 +91,10 @@ export default function Nudges({ profile, update }) {
             <div className="pad-line">
               <span className="row-margin" aria-hidden="true"><span className={`bell ${on ? 'is-on' : ''}`} /></span>
               <span className="line-body">
-                <span className="line-title">{on ? 'Nudges are on' : 'Nudges are off'}</span>
-                <span className="line-sub">{on ? 'Bob can tap you on the shoulder here.' : statusHint(permission)}</span>
+                <span className="line-title">{status === 'checking' ? 'Checking this phone…' : on ? 'Nudges are on' : status === 'not-saved' ? 'Not connected yet' : 'Nudges are off'}</span>
+                <span className="line-sub">{on ? 'Bob can reach this phone.' : status === 'checking' ? '' : statusHint(status)}</span>
               </span>
-              {permission !== 'denied' && permission !== 'unsupported' && (
+              {permission !== 'denied' && permission !== 'unsupported' && status !== 'checking' && (
                 <span className="line-end">
                   <Switch on={on} label="Nudges on this device" disabled={busy} onClick={on ? turnOff : turnOn} />
                 </span>
@@ -104,8 +113,23 @@ export default function Nudges({ profile, update }) {
           </div>
           {error && (
             <p className="pad-note error" role="alert">
-              Couldn’t turn on nudges: {error}. Try again, or check that notifications are allowed for Bob.
+              Bob couldn’t connect this phone ({error}). Turn the switch off and on again. If it still fails, send Eljon a screenshot of this message.
             </p>
+          )}
+          {profile && profile.role !== 'admin' && (
+            <div className="ruled share-line">
+              <div className="pad-line">
+                <span className="row-margin" />
+                <span className="line-body">
+                  <span className="line-title">Tell Eljon when I finish my day</span>
+                  <span className="line-sub">{profile.share_day_done ? 'He gets one notification when your list is all done.' : 'Off. Only you can turn this on.'}</span>
+                </span>
+                <span className="line-end">
+                  <Switch on={!!profile.share_day_done} label="Tell Eljon when I finish my day"
+                    onClick={() => update({ share_day_done: !profile.share_day_done })} />
+                </span>
+              </div>
+            </div>
           )}
         </section>
 
@@ -184,9 +208,10 @@ export default function Nudges({ profile, update }) {
   )
 }
 
-function statusHint(permission) {
-  if (permission === 'denied') return 'Blocked. Turn notifications on for Bob in your phone or browser settings.'
-  if (permission === 'unsupported') {
+function statusHint(status) {
+  if (status === 'denied') return 'Blocked. Turn notifications on for Bob in your phone or browser settings.'
+  if (status === 'not-saved') return 'Notifications are allowed, but Bob can’t reach this phone yet. Turn the switch on.'
+  if (status === 'unsupported') {
     return isIOS() && !isStandalone()
       ? 'Add Bob to your Home Screen, then open it from the icon to turn nudges on.'
       : 'This browser doesn’t support notifications.'

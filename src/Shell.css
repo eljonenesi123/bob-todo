@@ -75,3 +75,7 @@ button.pad-line { cursor: pointer; }
 .pad .switch.on .switch-knob { background: var(--ink); }
 .pad .error { color: #8E2F26; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.pad-block { margin: 8px 22px 0 66px; }
+.field-label { font-size: 13px; font-weight: 600; color: var(--pencil); }
+.field-hint { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--pencil); }
+.pad-h label { cursor: pointer; }

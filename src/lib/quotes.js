@@ -22,8 +22,9 @@ const QUOTES = [
   'Rest is part of the plan too.',
 ]
 
+// Counted on calendar dates (not clock time), exactly like quoteFor() in the Edge Function,
+// so summer time can't make the app and the morning push disagree.
 export function quoteOfTheDay(d = new Date()) {
-  const start = new Date(d.getFullYear(), 0, 0)
-  const dayOfYear = Math.floor((d - start) / 86400000)
+  const dayOfYear = Math.round((Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(d.getFullYear(), 0, 0)) / 86400000)
   return QUOTES[dayOfYear % QUOTES.length]
 }
