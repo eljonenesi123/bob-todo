@@ -183,7 +183,7 @@ async function once(userId: string, kind: string, ref: string, date: string) {
 // deno-lint-ignore no-explicit-any
 type Profile = any
 
-async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, sent: string[], admins: Profile[], byUser: Map<string, Sub[]>) {
+async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, sent: string[], partners: Profile[], byUser: Map<string, Sub[]>) {
   const now = local(p.timezone || 'Europe/Tirane')
 
   const [{ data: tasks }, { data: comps }] = await Promise.all([
@@ -205,22 +205,23 @@ async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, s
     return delivered
   }
 
-  // 0. She finished her day → tell Eljon, only if she turned sharing on (his quiet hours apply)
+  // 0. This person finished their list → tell their partner, only if they turned sharing on
+  //    (the partner's own quiet hours apply)
   if (p.share_day_done && total > 0 && left === 0) {
-    for (const a of admins) {
+    for (const a of partners) {
       const aSubs = byUser.get(a.id) ?? []
       if (a.id === p.id || !aSubs.length) continue
       const aNow = local(a.timezone || 'Europe/Tirane')
       if (inQuiet(aNow.minutes, a.quiet_start ?? '22:30', a.quiet_end ?? '08:00')) continue
-      if (await once(a.id, 'her_day_done', p.id, now.date)) {
-        const who = name || 'She'
-        const n = await sendToAll(aSubs, { title: `🎉 ${who} finished her day`, body: `${total} of ${total} done. Maybe leave her a note?`, tag: `done-${p.id}`, url: './' })
-        sent.push(`${a.id.slice(0, 6)}:her_day_done${n ? '' : ':failed'}`)
+      if (await once(a.id, 'partner_day_done', p.id, now.date)) {
+        const who = name || 'Your person'
+        const n = await sendToAll(aSubs, { title: `🎉 ${who} finished today's list`, body: `${total} of ${total} done. Maybe leave a note?`, tag: `done-${p.id}`, url: './' })
+        sent.push(`${a.id.slice(0, 6)}:partner_day_done${n ? '' : ':failed'}`)
       }
     }
   }
 
-  if (!subs.length) return // her phone isn't connected: nothing else to send
+  if (!subs.length) return // this person has no phone connected: nothing else to send
   if (inQuiet(now.minutes, p.quiet_start ?? '22:30', p.quiet_end ?? '08:00')) return
 
   // 1. Surprise notes whose time has come (even when snoozed: he chose the moment)
@@ -247,7 +248,7 @@ async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, s
 
   if (p.snoozed_on === now.date) return
 
-  // 3. Quote of the day at her chosen time, with a glance at today's list
+  // 3. Quote of the day at their chosen time, with a glance at today's list
   const qAt = toMin(p.quote_time ?? '08:00')
   if (now.minutes >= qAt && now.minutes < qAt + WINDOW && await once(p.id, 'quote', '', now.date)) {
     const plan = total === 0 ? 'Nothing on the list yet.' : `${plural(total, 'task')} on today\u2019s list.`
@@ -313,11 +314,11 @@ Deno.serve(async (req) => {
     return Response.json({ ok: true, sent })
   }
 
-  const admins = (profiles ?? []).filter((x) => x.role === 'admin')
   for (const p of profiles ?? []) {
-    // Everyone is checked (her day-done push to Eljon works even if her own phone isn't connected)
+    // Everyone gets the same treatment. Each person is checked even without a device,
+    // so the "finished today's list" push to the partner still works.
     try {
-      await handleUser(p, byUser.get(p.id) ?? [], names, sent, admins, byUser)
+      await handleUser(p, byUser.get(p.id) ?? [], names, sent, profiles ?? [], byUser)
     } catch (e) {
       console.error('user failed', p.id, e)
     }

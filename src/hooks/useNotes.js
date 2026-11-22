@@ -59,7 +59,7 @@ export function useNotes(userId) {
     await supabase.from('rewards').update({ claimed_at }).eq('id', reward.id)
   }, [])
 
-  const authorName = useCallback((note) => state.authors[note.author_id] || 'Eljon', [state.authors])
+  const authorName = useCallback((note) => state.authors[note.author_id] || 'someone special', [state.authors])
 
   return { ...state, ...derived, openNote, claimReward, authorName, reload: load }
 }

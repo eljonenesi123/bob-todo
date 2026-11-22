@@ -12,7 +12,7 @@ const Tick = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true"><path className="tick" d="M5 12.5l4.5 4.5L19 7" /></svg>
 )
 
-export default function Notes({ notes, allDone }) {
+export default function Notes({ notes, allDone, switcher }) {
   const { tasks, completions, today } = useTaskData()
   const streak = currentStreak(tasks, completions, today)
   const [reading, setReading] = useState(null)
@@ -30,6 +30,7 @@ export default function Notes({ notes, allDone }) {
       <header className="desk-head">
         <h1 className="page-title">Notes</h1>
         <p className="page-sub">Little messages, just for you.</p>
+        {switcher}
       </header>
 
       {notes.surprises.length > 0 && (

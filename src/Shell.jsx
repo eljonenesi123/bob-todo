@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useTaskData } from './context/tasks'
 import { useProfile } from './hooks/useProfile'
 import { useNotes } from './hooks/useNotes'
+import { usePartner, cleanName } from './hooks/usePartner'
 import { syncPush } from './lib/push'
 import BottomNav from './components/BottomNav'
 import DayComplete from './components/DayComplete'
@@ -20,9 +21,11 @@ const saveCelebrated = (iso) => { try { localStorage.setItem(CELEBRATED_KEY, iso
 export default function Shell({ user }) {
   const [tab, setTab] = useState('today')
   const { profile, update } = useProfile(user.id)
-  const isAdmin = profile?.role === 'admin'
   const { loading, todayTasks, today } = useTaskData()
   const notes = useNotes(user.id)
+  const { partner, partnerName } = usePartner(user.id)
+  // Notes tab has two sides for both of you: what you received, and writing to the other
+  const [notesView, setNotesView] = useState('inbox')
   const [celebrated, setCelebrated] = useState(readCelebrated)
 
   // A dot on Nudges when notifications are allowed but this phone couldn't be connected
@@ -43,11 +46,22 @@ export default function Shell({ user }) {
     setCelebrated(today)
   }
 
+  const switcher = (
+    <div className="pills notes-switch" role="group" aria-label="Notes">
+      <button type="button" className={`pill ${notesView === 'inbox' ? 'is-on' : ''}`} aria-pressed={notesView === 'inbox'}
+        onClick={() => setNotesView('inbox')}>For you{notes.hasNew ? ' (new)' : ''}</button>
+      <button type="button" className={`pill ${notesView === 'write' ? 'is-on' : ''}`} aria-pressed={notesView === 'write'}
+        onClick={() => setNotesView('write')}>{partnerName ? `Write to ${partnerName}` : 'Write a note'}</button>
+    </div>
+  )
+
   const screens = {
-    today: <Today />,
+    today: <Today name={cleanName(profile?.display_name)} />,
     progress: <Progress notes={notes} />,
-    notes: isAdmin ? <NotesAdmin userId={user.id} /> : <Notes notes={notes} allDone={allDone} />,
-    nudges: <Nudges profile={profile} update={update} onPushFixed={onPushFixed} />,
+    notes: notesView === 'write'
+      ? <NotesAdmin userId={user.id} partner={partner} partnerName={partnerName} switcher={switcher} />
+      : <Notes notes={notes} allDone={allDone} switcher={switcher} />,
+    nudges: <Nudges profile={profile} update={update} onPushFixed={onPushFixed} partnerName={partnerName} />,
   }
 
   return (
@@ -64,7 +78,7 @@ export default function Shell({ user }) {
         </motion.div>
       </AnimatePresence>
 
-      <BottomNav tab={tab} onChange={setTab} notesDot={!isAdmin && notes.hasNew} nudgesDot={pushIssue} />
+      <BottomNav tab={tab} onChange={setTab} notesDot={notes.hasNew} nudgesDot={pushIssue} />
 
       <AnimatePresence>
         {showCelebration && (

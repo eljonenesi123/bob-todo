@@ -29,7 +29,7 @@ function Switch({ on, label, disabled, onClick }) {
   )
 }
 
-export default function Nudges({ profile, update, onPushFixed }) {
+export default function Nudges({ profile, update, onPushFixed, partnerName }) {
   // 'on' only when Bob's server really has this device; see deviceStatus()
   const [status, setStatus] = useState(notificationsSupported() ? 'checking' : 'unsupported')
   const [busy, setBusy] = useState(false)
@@ -113,19 +113,19 @@ export default function Nudges({ profile, update, onPushFixed }) {
           </div>
           {error && (
             <p className="pad-note error" role="alert">
-              Bob couldn’t connect this phone ({error}). Turn the switch off and on again. If it still fails, send Eljon a screenshot of this message.
+              Bob couldn’t connect this phone ({error}). Turn the switch off and on again. If it still fails, take a screenshot of this message.
             </p>
           )}
-          {profile && profile.role !== 'admin' && (
+          {profile && (
             <div className="ruled share-line">
               <div className="pad-line">
                 <span className="row-margin" />
                 <span className="line-body">
-                  <span className="line-title">Tell Eljon when I finish my day</span>
-                  <span className="line-sub">{profile.share_day_done ? 'He gets one notification when your list is all done.' : 'Off. Only you can turn this on.'}</span>
+                  <span className="line-title">Tell {partnerName || 'my person'} when I finish my day</span>
+                  <span className="line-sub">{profile.share_day_done ? 'One notification when your list is all done.' : 'Off. Only you can turn this on.'}</span>
                 </span>
                 <span className="line-end">
-                  <Switch on={!!profile.share_day_done} label="Tell Eljon when I finish my day"
+                  <Switch on={!!profile.share_day_done} label={`Tell ${partnerName || 'my person'} when I finish my day`}
                     onClick={() => update({ share_day_done: !profile.share_day_done })} />
                 </span>
               </div>

@@ -16,10 +16,11 @@ Core idea: a calm daily planner that **nudges her with push notifications** only
 - Supabase project ref: `wsxfxhwhwplarmvmtsdj` (region Europe, free tier)
 - Design mockups (Claude Design canvas, may be outdated vs. the new look): https://claude.ai/artifact/KuZFjdRBmFsNgZeiCs9ePG
 
-Roles:
-- **Eljon** = `profiles.role = 'admin'`. Sees the **Notes for her** admin page (writes notes/rewards).
-- **Her** = `role = 'user'`. Sees her notes, rewards, streak.
-- Both can use the to-do features for themselves; each only sees their own tasks (RLS).
+Accounts (since 2026-11-22 both have **the same features**):
+- Each person has their own tasks (RLS), streak, rewards and notifications.
+- The Notes tab has two sides for both: **For you** (notes and rewards received) and **Write to <name>** (send notes and rewards to the other).
+- Each can turn on "Tell <name> when I finish my day".
+- `profiles.role` ('admin' for Eljon) no longer changes anything in the app; it's only kept in the data. Copy uses the other person's display name, never "she/her".
 
 ---
 
@@ -75,7 +76,8 @@ public/icons/*, apple-touch-icon.png, favicon.svg   Sun-on-yellow app icons
 src/main.jsx               React root
 src/App.jsx                Session gate: Welcome (signed out) → Setup (first run) → TasksProvider + Shell
                            Splash (src/components/Splash.*) on top for ≥1.6s: Tally mark draws itself + quote of the day
-src/Shell.jsx              Tabs (today/progress/notes/nudges), BottomNav, Day-complete overlay, syncPush()
+src/Shell.jsx              Tabs (today/progress/notes/nudges), Notes switch (For you / Write to <name>), BottomNav,
+                           Day-complete overlay, syncPush(); passes partner + names down
 src/sw.js                  Service worker: precache, offline navigation, 'push' + 'notificationclick', app badge
 src/index.css              Global tokens (colors, fonts), .screen/.btn/.field basics
 src/Shell.css              Bottom nav, shared .page-title/.panel/.tab-screen, paper-page kit (.paper-page/.desk-head/.pad-line/.ink-btn)
@@ -87,6 +89,7 @@ src/hooks/useTasks.js      Fetch tasks/completions/subtasks, realtime sync, toda
                            removeTask (archive), addStep, toggleStep, removeStep
 src/hooks/useProfile.js    Own profile, update(); auto-saves browser timezone
 src/hooks/useNotes.js      Notes/rewards for the signed-in user; openNote, claimReward, author names
+src/hooks/usePartner.js    The other account (id, display_name) + cleanName()
 
 src/lib/supabase.js        createClient(URL, PUBLISHABLE_KEY)
 src/lib/dates.js           toISO (local YYYY-MM-DD), addDays, isDueOn (repeat rules + carry-over), greeting, prettyDate
@@ -100,10 +103,10 @@ src/lib/focus.js           Focus timer session in localStorage (survives closing
 
 src/screens/Welcome.*      Email → 6-digit code sign-in ("Sign in or create your account")
 src/screens/Setup.*        First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
-src/screens/Today.*        Planner page: date masthead, tally, day strip (today + 5), legal-pad list, Big three, steps
+src/screens/Today.*        Planner page: "Good evening, <name>" at the top, date masthead, tally, day strip (today + 5), legal-pad list, Big three, steps
 src/screens/Progress.*     Streak numeral + tally marks, week bars, pen-marked month calendar, next reward
-src/screens/Notes.*        Her view: surprises, locked-note count, rewards (claim), opened notes
-src/screens/NotesAdmin.jsx Eljon's view: write notes (day_complete / surprise with time), rewards, real delivery status
+src/screens/Notes.*        "For you": surprises, locked-note count, rewards (claim), opened notes
+src/screens/NotesAdmin.jsx "Write to <name>": notes (after a finished day / surprise at a time), rewards, real delivery status
 src/screens/Nudges.*       Notifications switch (checks the database) + errors, snooze, "Tell Eljon when I finish my day",
                            schedule, nudge style, times, name, sign out
 
@@ -128,13 +131,13 @@ All tables have **RLS on**. Users only see their own rows unless stated.
 
 - **profiles**: `id` (= auth user), `display_name`, `role` ('user'|'admin'), `timezone`, `quiet_start` (22:30), `quiet_end` (08:00), `nudge_style` ('gentle'|'sweet_hype'|'tough_love'), `snoozed_on` (date), `quote_time` (08:00), `share_day_done` (bool, her opt-in). Created by trigger `handle_new_user` on sign-up.
   - Users may only UPDATE these columns: display_name, timezone, quiet_start, quiet_end, nudge_style, snoozed_on, quote_time, share_day_done (column grants, so nobody can make themselves admin).
-  - Admin can read all profiles (`is_admin()` security-definer function). A user can read the profile of anyone who wrote them a note.
+  - Both accounts can read each other's profile ("partners read profiles", SQL 06: any signed-in user, fine while sign-ups are closed).
 - **tasks**: `title`, `category`, `is_big3`, `repeat` ('once'|'daily'|'weekdays'|'weekly'), `remind_at` (time), `due_on` (date: the day it's planned for / start date), `archived` (soft delete), `position` (list order).
 - **task_completions**: `(task_id, done_on)` primary key. One row per task per day done. Streaks/history come from this.
 - **subtasks** ("steps"): `task_id`, `title`, `done_at` (persistent, not per day), `position`.
 - **notes**: `author_id`, `recipient_id`, `body`, `kind` ('day_complete'|'surprise'), `deliver_at`, `notified_at` (set only after a device accepted the push), `notify_error` (last failed try), `opened_at`. Recipient can only update `opened_at` and only sees surprises once `deliver_at <= now()`.
 - **rewards**: `title`, `streak_required`, `notified_at`, `claimed_at`. Recipient can only update `claimed_at`.
-- **push_subscriptions**: one row per device (`endpoint` unique, `p256dh`, `auth`). `push_device_count(person)` (security definer) tells the admin, or the person themself, how many devices they have.
+- **push_subscriptions**: one row per device (`endpoint` unique, `p256dh`, `auth`). `push_device_count(person)` (security definer) tells either of you how many devices a person has (count only).
 - **nudge_log**: `(user_id, kind, ref, sent_on)` unique. Server-only (RLS on, no policies). Prevents duplicate pushes.
 - Realtime publication includes: tasks, task_completions, subtasks.
 - Cron: job `bob-nudges` runs every 5 minutes → `net.http_post` to the Edge Function with header `x-cron-secret`.
@@ -165,8 +168,8 @@ All tables have **RLS on**. Users only see their own rows unless stated.
 
 Runs every 5 min. For every profile, in their local timezone:
 
-- **Her day is done** and `share_day_done` is on: one push to each admin device ("🎉 Ana finished her day"), respecting the admin's quiet hours, once per day. Works even if her own phone isn't connected.
-- Everything below needs her to have a device; without one nothing is sent (and notes stay unsent, not falsely marked).
+- **Someone finished today's list** and their `share_day_done` is on: one push to the other person's devices ("🎉 Ana finished today's list"), respecting the receiver's quiet hours, once per day. Works even if the finisher's own phone isn't connected.
+- Everything below goes to each person about their own day and needs that person to have a device; without one nothing is sent (and notes stay unsent, not falsely marked).
 0. Skip during quiet hours (it fires when they end, within a 2h window).
 1. **Surprise notes** whose `deliver_at` has passed (ignore snooze) → "Bob has a message for you". `notified_at` is set only if a device accepted it; otherwise `notify_error` is set and it retries next run. A note she opens in the app first is never pushed.
 2. **Rewards** just unlocked by the streak → "Reward unlocked!"
@@ -236,6 +239,11 @@ Batch of 2026-11-22 (honest Nudges switch, delivery status, quote fix, cleanup, 
 - [ ] Redeploy the Edge Function (paste `supabase/functions/send-nudges/index.ts`, Deploy, check Verify JWT is still off)
 - [ ] Push to main
 - [ ] Test on her iPhone: hold a task to edit, drag the dots, Focus on a task, Nudges switch, "Tell Eljon" switch
+
+Equal features (2026-11-22, after the batch above):
+- [ ] Run `supabase/sql/06_equal_partners.sql`
+- [ ] Redeploy the Edge Function again (day-done push now goes to the partner, whoever finished)
+- [ ] Eljon turns on Nudges on his own phone (Bob → Nudges → switch) so he gets notifications too
 
 Backlog (ask Eljon to prioritise; her feedback decides):
 - Nightly 1-tap mood check-in

@@ -44,7 +44,7 @@ function RowList({ tasks, big, onReorder, rowProps }) {
   )
 }
 
-export default function Today() {
+export default function Today({ name }) {
   const data = useTaskData()
   const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, addStep, toggleStep, removeStep } = data
   const [selected, setSelected] = useState(null)
@@ -90,6 +90,8 @@ export default function Today() {
 
   return (
     <main className="today">
+      <h1 className="hello">{name ? `${greeting()}, ${name}` : greeting()}</h1>
+
       <header className="masthead">
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div key={day} className="mast-date"
@@ -114,7 +116,7 @@ export default function Today() {
       </header>
 
       <p className="greeting">
-        {isToday ? greeting() : `Planning ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}
+        {isToday ? 'Here’s your page for today.' : `Planning ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}
       </p>
 
       <DayStrip days={days} selected={day} onSelect={setSelected} />

@@ -13,7 +13,7 @@ async function fetchAdminData(userId) {
   return { people: people.data ?? [], notes: notes.data ?? [], rewards: rewards.data ?? [] }
 }
 
-// How many devices she has connected; null if we can't tell (e.g. SQL 05 not run yet)
+// How many devices the other person has connected; null if we can't tell (e.g. SQL 05 not run yet)
 async function fetchDevices(personId) {
   if (!personId) return null
   const { data, error } = await supabase.rpc('push_device_count', { person: personId })
@@ -25,17 +25,17 @@ const TrashIcon = () => (
 )
 
 // What happened to a note, in plain words. tone: 'done' | 'wait' | 'problem'
-function noteStatus(n, devices) {
+function noteStatus(n, devices, who) {
   if (n.opened_at) return { label: `Opened ${fmt(n.opened_at)}`, tone: 'done' }
-  if (n.kind === 'day_complete') return { label: 'Waiting for a finished day', tone: 'wait' }
+  if (n.kind === 'day_complete') return { label: 'Opens after a finished day', tone: 'wait' }
   if (n.deliver_at && new Date(n.deliver_at) > new Date()) return { label: `Arrives ${fmt(n.deliver_at)}`, tone: 'wait' }
-  if (n.notified_at) return { label: `Sent to her phone ${fmt(n.notified_at)}`, tone: 'done' }
-  if (devices === 0) return { label: 'Not sent: she hasn’t turned on notifications', tone: 'problem' }
-  if (n.notify_error) return { label: 'Her phone didn’t take it yet. Bob retries every 5 minutes.', tone: 'problem' }
+  if (n.notified_at) return { label: `Sent to ${who}’s phone ${fmt(n.notified_at)}`, tone: 'done' }
+  if (devices === 0) return { label: `Not sent: ${who} hasn’t turned on notifications`, tone: 'problem' }
+  if (n.notify_error) return { label: 'The phone didn’t take it yet. Bob retries every 5 minutes.', tone: 'problem' }
   return { label: 'Sending in the next few minutes', tone: 'wait' }
 }
 
-export default function NotesAdmin({ userId }) {
+export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
   const [data, setData] = useState({ people: [], notes: [], rewards: [], loaded: false })
   const [devices, setDevices] = useState(null)
   const [recipient, setRecipient] = useState('')
@@ -46,7 +46,8 @@ export default function NotesAdmin({ userId }) {
   const [rewardDays, setRewardDays] = useState(7)
   const [msg, setMsg] = useState('')
 
-  const to = recipient || data.people[0]?.id
+  const to = recipient || partner?.id || data.people[0]?.id
+  const who = partnerName || 'them'
 
   const reload = useCallback(async () => {
     setData({ ...(await fetchAdminData(userId)), loaded: true })
@@ -75,7 +76,7 @@ export default function NotesAdmin({ userId }) {
     const { error } = await supabase.from('notes').insert(row)
     if (error) return setMsg('The note wasn’t saved. Check your connection and try again.')
     setBody(''); setWhen('')
-    setMsg(kind === 'surprise' ? 'Saved. Bob sends it at that time.' : 'Saved. She opens it when she finishes a day.')
+    setMsg(kind === 'surprise' ? 'Saved. Bob sends it at that time.' : `Saved. ${who === 'them' ? 'It' : who} opens after a finished day.`)
     reload()
   }
 
@@ -97,13 +98,14 @@ export default function NotesAdmin({ userId }) {
   return (
     <main className="paper-page tab-screen admin">
       <header className="desk-head">
-        <h1 className="page-title">Notes for her</h1>
-        <p className="page-sub">Only you see this page.</p>
+        <h1 className="page-title">Notes</h1>
+        <p className="page-sub">Only you see what you’ve written here.</p>
+        {switcher}
       </header>
 
       <section className="pad" aria-label="Write notes and rewards">
         {data.loaded && data.people.length === 0 && (
-          <p className="pad-note admin-empty">She hasn’t signed up yet. Once she does, you can write to her here.</p>
+          <p className="pad-note admin-empty">Nobody else has signed up yet. Once they do, you can write to them here.</p>
         )}
 
         {data.people.length > 1 && (
@@ -119,15 +121,15 @@ export default function NotesAdmin({ userId }) {
 
         {devices === 0 && (
           <p className="pad-note error" role="status">
-            She hasn’t turned on notifications, so surprises only show up when she opens Bob. She can turn them on in the Nudges tab.
+            {partnerName || 'The other account'} hasn’t turned on notifications yet, so surprises only show up when Bob is opened. They can be turned on in the Nudges tab.
           </p>
         )}
 
         <form className="pad-section" onSubmit={sendNote}>
           <h2 className="pad-h">Write a note</h2>
           <div className="pad-block admin-form">
-            <div className="pills" role="group" aria-label="When she gets it">
-              <button type="button" className={`pill ${kind === 'day_complete' ? 'is-on' : ''}`} aria-pressed={kind === 'day_complete'} onClick={() => setKind('day_complete')}>When she finishes a day</button>
+            <div className="pills" role="group" aria-label="When it arrives">
+              <button type="button" className={`pill ${kind === 'day_complete' ? 'is-on' : ''}`} aria-pressed={kind === 'day_complete'} onClick={() => setKind('day_complete')}>After a finished day</button>
               <button type="button" className={`pill ${kind === 'surprise' ? 'is-on' : ''}`} aria-pressed={kind === 'surprise'} onClick={() => setKind('surprise')}>Surprise at a time</button>
             </div>
             <textarea className="letter-input" aria-label="Your message" value={body} onChange={(e) => setBody(e.target.value)}
@@ -146,7 +148,7 @@ export default function NotesAdmin({ userId }) {
         <form className="pad-section" onSubmit={addReward}>
           <h2 className="pad-h">Add a reward</h2>
           <div className="pad-block admin-form">
-            <p className="field-hint">She unlocks it with a streak of fully done days.</p>
+            <p className="field-hint">Unlocked with a streak of fully done days.</p>
             <div className="inline-fields">
               <input className="line-input" aria-label="Reward" placeholder="Date night, you pick" value={rewardTitle} onChange={(e) => setRewardTitle(e.target.value)} maxLength={80} />
               <label className="admin-field">
@@ -163,7 +165,7 @@ export default function NotesAdmin({ userId }) {
             <h2 className="pad-h">Your notes</h2>
             <ul className="ruled">
               {data.notes.map((n) => {
-                const s = noteStatus(n, devices)
+                const s = noteStatus(n, devices, who)
                 return (
                   <li key={n.id} className="pad-line">
                     <span className="row-margin" aria-hidden="true"><span className={`status-dot ${s.tone}`} /></span>

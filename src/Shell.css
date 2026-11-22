@@ -79,3 +79,8 @@ button.pad-line { cursor: pointer; }
 .field-label { font-size: 13px; font-weight: 600; color: var(--pencil); }
 .field-hint { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--pencil); }
 .pad-h label { cursor: pointer; }
+
+/* Notes tab: "For you" / "Write to …" on the desk, under the heading */
+.notes-switch { margin-top: 16px; }
+.notes-switch .pill { border-color: var(--gray-3); color: var(--silver); }
+.notes-switch .pill.is-on { background: var(--silver); border-color: var(--silver); color: var(--ink); }
