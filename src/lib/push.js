@@ -30,10 +30,7 @@ export async function enablePush() {
   if (!notificationsSupported()) return 'unsupported'
   const permission = await Notification.requestPermission()
   if (permission !== 'granted') return permission
-  if (!VAPID_PUBLIC_KEY) {
-    console.warn('VITE_VAPID_PUBLIC_KEY is missing')
-    return 'granted'
-  }
+  if (!VAPID_PUBLIC_KEY) throw new Error('VITE_VAPID_PUBLIC_KEY is missing from this build')
   const reg = await navigator.serviceWorker.ready
   const sub = (await reg.pushManager.getSubscription()) ||
     (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: base64ToUint8(VAPID_PUBLIC_KEY) }))
