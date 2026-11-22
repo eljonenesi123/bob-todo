@@ -77,7 +77,7 @@ src/App.jsx                Session gate: Welcome (signed out) → Setup (first r
 src/Shell.jsx              Tabs (today/progress/notes/nudges), BottomNav, Day-complete overlay, syncPush()
 src/sw.js                  Service worker: precache, offline navigation, 'push' + 'notificationclick', app badge
 src/index.css              Global tokens (colors, fonts), .screen/.btn/.field basics
-src/Shell.css              Bottom nav, shared .page-title/.panel/.tab-screen
+src/Shell.css              Bottom nav, shared .page-title/.panel/.tab-screen, paper-page kit (.paper-page/.desk-head/.pad-line/.ink-btn)
 
 src/context/tasks.js           TasksContext + useTaskData()
 src/context/TasksProvider.jsx  Wraps useTasks(); sets app icon badge = tasks left today
@@ -97,7 +97,7 @@ src/lib/push.js            enablePush / disablePush / syncPush, saves subscripti
 src/screens/Welcome.*      Email → 6-digit code sign-in ("Sign in or create your account")
 src/screens/Setup.*        First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
 src/screens/Today.*        Planner page: date masthead, tally, day strip (today + 5), legal-pad list, Big three, steps
-src/screens/Progress.*     Streak, week bars, month grid, next reward
+src/screens/Progress.*     Streak numeral + tally marks, week bars, pen-marked month calendar, next reward
 src/screens/Notes.*        Her view: surprises, locked-note count, rewards (claim), opened notes
 src/screens/NotesAdmin.jsx Eljon's view: write notes (day_complete / surprise with time), rewards, statuses
 src/screens/Nudges.*       Notifications switch + errors, snooze today, schedule, quote time, nudge style, quiet hours, name, sign out
@@ -195,7 +195,8 @@ Troubleshooting map: 401 `UNAUTHORIZED_NO_AUTH_HEADER` → Verify JWT is on. `In
 - **Avoid** (generic AI tells): ALL-CAPS eyebrow labels, middle-dot meta strings ("A · B"), emoji in the UI (fine in push titles), identical rounded cards everywhere, fade-and-slide-up on every section, gradient washes, `→` on buttons, generic fonts (Inter, Plus Jakarta), lorem/filler copy.
 - Copy: plain, warm, sentence case, active verbs ("Add to today", "Write a task"). Errors say what happened and how to fix it.
 - Accessibility floor: real buttons/inputs, `aria` on icon buttons, 44px touch targets, focus ring (yellow), `prefers-reduced-motion` respected, text contrast ≥ 4.5:1.
-- The other tabs (Progress, Notes, Nudges, Welcome, Setup, Day complete) were only partly moved to the new look. Bringing them fully into the paper/highlighter style is open work.
+- Progress, Notes (her view) and Nudges use the paper page pattern: a short heading on the desk, then a `.pad` of ruled `.pad-line`s with a 52px margin column. The pad kit (.pad, .pad-h, .ruled, .row-margin, .box, .hl, .pill, .line-input, .switch, .btn-ink) lives in `Today.css`; the page-level pieces live in `Shell.css`.
+- Still only partly in the new look: Welcome, Setup, Day complete, NotesAdmin (Eljon's Notes tab, still uses dark `.panel`s and the admin rules at the bottom of `Notes.css`).
 
 ---
 
@@ -204,12 +205,15 @@ Troubleshooting map: 401 `UNAUTHORIZED_NO_AUTH_HEADER` → Verify JWT is on. `In
 Done: sign-in (code), PWA + offline + install, Today with steps/5-day planning/carry-over, Progress, Notes (+ admin), Day complete, Nudges settings, push engine with quote/reminders/nudges/notes/rewards/recap, app badge, live sync between devices.
 
 Must verify after the last commit (`5400f36 Steps, 5-day planning, daily quote, new look`):
-- [ ] `supabase/sql/04_subtasks_and_quote.sql` was run
+- [x] `supabase/sql/04_subtasks_and_quote.sql` was run (checked 2026-11-22: `subtasks` table and `profiles.quote_time` both answer over the REST API)
 - [ ] Edge Function redeployed with the quote version (+ Verify JWT off)
-- [ ] New look reviewed on iPhone + PC; fix visual bugs from screenshots
+  - [x] Verify JWT is off (checked 2026-11-22: a call with no auth gets the function's own plain `Unauthorized`, not `UNAUTHORIZED_NO_AUTH_HEADER`)
+  - [ ] Quote version is the deployed code: in Supabase → Edge Functions → send-nudges → Code, search for `quoteFor`. If it's missing, paste `supabase/functions/send-nudges/index.ts` and Deploy.
+- [x] New look is live (checked 2026-11-22: the Pages bundle contains the Today page strings)
+- [ ] New look reviewed on iPhone + PC; fix visual bugs from screenshots (needs Eljon on the real devices)
 
 Backlog (ask Eljon to prioritise; her feedback decides):
-- Restyle remaining tabs to the paper/highlighter system
+- Restyle Welcome, Setup, Day complete and NotesAdmin to the paper/highlighter system
 - Edit a task (long-press), "Move to tomorrow", drag to reorder
 - Focus timer on a task, nightly 1-tap mood check-in
 - Albanian/English language switch (Eljon builds multilingual sites: EN/SQ/DE)

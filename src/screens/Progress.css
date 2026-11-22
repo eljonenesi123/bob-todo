@@ -1,39 +1,66 @@
-.progress { gap: 18px; }
-.small { font-size: 13px; }
+/* ---------- Progress: streak masthead + a page of the pad ---------- */
+.streak-head { display: flex; flex-direction: column; gap: 14px; padding-top: 18px; }
+.streak-tally { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.streak-tally svg { fill: none; stroke: var(--yellow); stroke-width: 2.4; stroke-linecap: round; }
+.tally-more { font-size: 15px; font-weight: 700; color: var(--yellow); }
 
-.streak-card {
-  background: var(--yellow); color: var(--gray); border-radius: 24px; padding: 20px;
-  display: flex; align-items: center; gap: 16px;
+/* This week: pencil bars standing on a ruled baseline */
+.week {
+  margin: 10px 22px 0 66px; height: 132px;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 8px;
 }
-.streak-icon { width: 64px; height: 64px; border-radius: 20px; background: var(--gray); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.flame { animation: flicker 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
-@keyframes flicker { 0%, 100% { transform: scale(1) rotate(-4deg); } 50% { transform: scale(1.12) rotate(4deg); } }
-.streak-num { margin: 0; font-size: 34px; font-weight: 800; line-height: 1; }
-.streak-sub { margin: 4px 0 0; font-size: 14px; font-weight: 600; }
-
-.week-bars { height: 140px; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 10px; }
 .week-col { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.bar-track { flex: 1; width: 100%; max-width: 30px; display: flex; align-items: flex-end; }
-.bar { width: 100%; border-radius: 10px; background: #8D9096; min-height: 4px; }
-.bar.today { background: var(--silver); }
-.bar.full { background: var(--yellow); }
-.bar-label { font-size: 12px; font-weight: 600; color: var(--muted); }
-.bar-label.today { color: var(--yellow); font-weight: 800; }
+.week-track {
+  position: relative; flex: 1; width: 100%;
+  border-bottom: 1.5px solid var(--ink);
+}
+.week-bar { position: absolute; bottom: 0; left: 0; right: 0; margin: 0 auto; width: 60%; max-width: 22px; border-radius: 3px 3px 0 0; background: var(--margin-line); }
+.week-col.full .week-bar { background: var(--ink); }
+.week-col.future .week-track { border-bottom-style: dashed; border-bottom-color: var(--margin-line); }
+.week-label { font-size: 13px; font-weight: 600; color: var(--pencil); }
+.week-label.hl-static { color: var(--ink); font-weight: 800; }
 
-.month-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
-.month-cell { aspect-ratio: 1; border-radius: 8px; background: var(--gray-3); display: block; }
-.month-cell.pad { background: transparent; }
-.month-cell.future, .month-cell.empty { background: #3D3F44; }
-.month-cell.full { background: var(--yellow); }
-.month-cell.partial { background: #8D9096; }
-.month-cell.missed { background: var(--gray-3); }
-.month-cell.is-today { outline: 2px solid var(--silver); outline-offset: 1px; }
-.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
-.legend span { display: flex; align-items: center; gap: 6px; }
-.legend .month-cell { width: 12px; height: 12px; border-radius: 4px; aspect-ratio: auto; }
+/* Month: a little calendar, marked up in pen */
+.cal {
+  margin: 10px 22px 0 66px;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); row-gap: 4px;
+}
+.cal-dow { text-align: center; font-size: 12px; font-weight: 600; color: var(--pencil); padding-bottom: 4px; }
+.cal-day {
+  position: relative; display: flex; align-items: center; justify-content: center;
+  aspect-ratio: 1; font-size: 14px; font-weight: 500; color: var(--ink); font-style: normal;
+}
+.cal-day > span { position: relative; z-index: 1; font-variant-numeric: tabular-nums; }
+.cal-day.future, .cal-day.empty { color: var(--pencil); }
+.cal-day.future > span { opacity: .6; }
+/* all done: circled */
+.cal-day.full::after {
+  content: ''; position: absolute; inset: 9%; border: 2px solid var(--ink); border-radius: 50%;
+  transform: rotate(-8deg); border-top-left-radius: 46% 54%;
+}
+.cal-day.full { font-weight: 800; }
+/* some done: a dot under the number */
+.cal-day.partial::after {
+  content: ''; position: absolute; bottom: 10%; left: 50%; width: 5px; height: 5px; margin-left: -2.5px;
+  border-radius: 50%; background: var(--ink);
+}
+/* missed: one pencil stroke */
+.cal-day.missed { color: var(--pencil); }
+.cal-day.missed::after {
+  content: ''; position: absolute; left: 30%; right: 30%; top: 50%; height: 1.5px;
+  background: var(--pencil); transform: rotate(-30deg);
+}
+/* today: highlighted */
+.cal-day.is-today > span {
+  padding: 0 4px; margin: 0 -4px;
+  background: linear-gradient(100deg, transparent 0 4%, var(--yellow) 8% 92%, transparent 96%) no-repeat 0 60% / 100% 70%;
+}
 
-.reward-head { display: flex; align-items: center; gap: 12px; }
-.reward-title { margin: 0; font-size: 15px; font-weight: 800; }
-.reward-sub { margin: 2px 0 0; font-size: 13px; color: var(--muted-dark); font-weight: 500; }
-.reward-track { height: 12px; border-radius: 999px; background: #B8BABE; overflow: hidden; }
-.reward-fill { height: 100%; border-radius: 999px; background: var(--gray); }
+.cal-key { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.cal-key > span { display: flex; align-items: center; gap: 4px; }
+.cal-key .cal-day { width: 26px; font-size: 11px; }
+
+/* Reward progress: a pen line along the ruled page */
+.reward-track { margin: 12px 22px 0 66px; height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+.reward-fill { height: 100%; border-radius: 3px; background: var(--ink); transition: width .6s ease; }
+.reward-fill.done { background: var(--yellow); }

@@ -33,3 +33,45 @@
 .muted { color: var(--muted); }
 .row-between { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 textarea.field { height: auto; min-height: 120px; padding: 14px 16px; resize: vertical; line-height: 1.45; }
+
+/* ---------- Paper pages (Progress, Notes, Nudges) ----------
+   A short heading on the desk, then a legal pad. The pad kit itself
+   (.pad, .pad-h, .ruled, .row-margin, .box, .hl, .pill, .line-input, .switch, .btn-ink)
+   lives in Today.css, which Shell always loads through Today. */
+.paper-page {
+  max-width: 480px; margin: 0 auto; min-height: 100dvh;
+  padding: max(40px, env(safe-area-inset-top)) 0 0;
+  display: flex; flex-direction: column;
+}
+.desk-head { padding: 8px 22px 22px; }
+.paper-page .pad { padding-top: 22px; }
+.pad-h-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.pad-h-row span { font-size: 13px; font-weight: 500; }
+
+/* One ruled line: margin cell, text, optional control on the right */
+.pad-line {
+  display: flex; align-items: center; min-height: 54px; width: 100%;
+  border: none; border-bottom: 1px solid var(--rule); background: none; color: inherit;
+  padding: 0; text-align: left; font: inherit;
+}
+button.pad-line { cursor: pointer; }
+.line-body { flex: 1; min-width: 0; padding: 10px 12px 10px 13px; display: flex; flex-direction: column; gap: 2px; }
+.line-title { align-self: flex-start; font-size: 17px; font-weight: 500; line-height: 1.3; }
+.line-sub { font-size: 13px; line-height: 1.4; color: var(--pencil); }
+.line-end { flex-shrink: 0; padding-right: 16px; display: flex; align-items: center; }
+.pad-note { margin: 10px 22px 0 66px; font-size: 13px; line-height: 1.4; color: var(--pencil); }
+
+/* Outline ink button, for actions on paper */
+.ink-btn {
+  min-height: 44px; padding: 0 18px; border: 1.5px solid var(--ink); border-radius: 999px;
+  background: none; color: var(--ink); font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.ink-btn:disabled { opacity: .4; cursor: default; }
+
+/* Switches on paper: pencil track when off, highlighter when on */
+.pad .switch { background: var(--pencil); }
+.pad .switch.on { background: var(--yellow); }
+.pad .switch-knob { background: var(--paper); }
+.pad .switch.on .switch-knob { background: var(--ink); }
+.pad .error { color: #8E2F26; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

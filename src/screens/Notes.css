@@ -1,43 +1,44 @@
-.notes { gap: 18px; }
-.small-text { margin: 2px 0 0; font-size: 13px; }
+/* ---------- Notes (her view): envelopes on the desk, the rest on the pad ---------- */
 
-.surprise-card {
-  width: 100%; border: none; cursor: pointer; text-align: left; font-family: inherit;
-  background: var(--yellow); color: var(--gray); border-radius: 22px; padding: 18px;
-  display: flex; align-items: center; gap: 14px; animation: glow 2.2s ease-in-out infinite;
+/* A new surprise is a sealed envelope lying on the desk */
+.envelopes { display: flex; flex-direction: column; gap: 12px; padding: 0 22px 22px; }
+.envelope {
+  position: relative; width: 100%; min-height: 96px; overflow: hidden;
+  border: none; border-radius: 4px; cursor: pointer; text-align: left; font: inherit;
+  background: var(--paper); color: var(--ink); padding: 18px 18px 18px 76px;
+  display: flex; align-items: center;
+  transform: rotate(-1.2deg);
 }
-@keyframes glow { 50% { box-shadow: 0 0 0 8px rgba(255, 201, 60, .18); } }
-.surprise-icon { display: flex; }
-.surprise-text { display: flex; flex-direction: column; gap: 2px; font-size: 13px; font-weight: 600; }
-.surprise-text strong { font-size: 16px; font-weight: 800; }
-
-.locked-row { display: flex; align-items: center; gap: 14px; }
-.lock-env { flex-shrink: 0; }
-
-.reward-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.reward-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: #3D3F44; }
-.reward-item.ready { background: var(--silver); color: var(--gray); }
-.reward-item.claimed { opacity: .6; }
-.reward-gift { display: flex; color: inherit; }
-.reward-info { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); }
-.reward-item.ready .reward-info { color: var(--muted-dark); }
-.reward-info strong { font-size: 15px; color: inherit; }
-.reward-item .reward-info strong { color: var(--silver); }
-.reward-item.ready .reward-info strong { color: var(--gray); }
-.claim-btn { height: 40px; padding: 0 16px; font-size: 14px; background: var(--yellow); color: var(--gray); }
-
-.opened { display: flex; flex-direction: column; gap: 10px; }
-.opened-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.opened-item {
-  width: 100%; border: 1.5px solid var(--gray-3); background: transparent; color: var(--silver);
-  border-radius: 16px; padding: 14px 16px; text-align: left; cursor: pointer; font-family: inherit;
-  display: flex; flex-direction: column; gap: 4px;
+.envelope::before { /* the flap */
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 58%;
+  background: linear-gradient(to bottom right, transparent calc(50% - 1px), var(--margin-line) 50%, transparent calc(50% + 1px)) left / 50.5% 100% no-repeat,
+              linear-gradient(to bottom left, transparent calc(50% - 1px), var(--margin-line) 50%, transparent calc(50% + 1px)) right / 50.5% 100% no-repeat;
+  pointer-events: none;
 }
-.opened-date { font-size: 12px; font-weight: 700; color: var(--muted); }
-.opened-body { font-size: 15px; font-weight: 500; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.envelope-seal {
+  position: absolute; left: 22px; top: 50%; width: 38px; height: 38px; margin-top: -19px;
+  border-radius: 50%; background: var(--yellow); box-shadow: inset 0 0 0 3px rgba(43, 45, 49, .18);
+}
+.envelope-text { position: relative; display: flex; flex-direction: column; gap: 2px; font-size: 14px; color: var(--pencil); }
+.envelope-text strong { font-size: 18px; font-weight: 700; color: var(--ink); }
+.envelope:active { transform: rotate(-1.2deg) scale(.98); }
 
+/* Rewards and opened notes are ruled lines */
+.reward-line.is-claimed .line-title { color: var(--pencil); }
+.opened-line .row-margin { align-self: stretch; }
+.opened-date {
+  flex-direction: column; justify-content: center; gap: 0;
+  font-size: 11px; font-weight: 600; color: var(--pencil); line-height: 1.1;
+}
+.opened-date strong { font-size: 18px; font-weight: 700; color: var(--ink); font-variation-settings: 'wdth' 80; }
+.opened-body {
+  font-family: var(--serif); font-style: italic; font-size: 17px; line-height: 1.4; color: var(--ink);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+
+/* Reading a note: a sheet of letter paper */
 .letter-overlay {
-  position: fixed; inset: 0; z-index: 25; background: rgba(0, 0, 0, .6);
+  position: fixed; inset: 0; z-index: 25; background: rgba(20, 21, 24, .7);
   display: flex; align-items: center; justify-content: center; padding: 24px; perspective: 900px;
 }
 .letter {
@@ -45,10 +46,15 @@
   background: var(--paper); color: var(--ink); border-radius: 4px; padding: 26px 22px 20px;
   display: flex; flex-direction: column; gap: 14px; transform-origin: top center;
 }
-.letter-from { margin: 0; font-size: 14px; font-weight: 600; color: var(--muted-dark); }
-.letter-body { margin: 0; font-family: var(--serif); font-style: italic; font-size: 22px; line-height: 1.5; white-space: pre-wrap; }
+.letter-from { margin: 0; font-size: 14px; font-weight: 600; color: var(--pencil); }
+.letter-body {
+  margin: 0; font-family: var(--serif); font-style: italic; font-size: 22px; line-height: 36px; white-space: pre-wrap;
+  background: repeating-linear-gradient(to bottom, transparent 0 35px, var(--rule) 35px 36px);
+  padding-bottom: 6px;
+}
 
 /* Admin (Eljon's) notes page */
+.screen.notes { gap: 18px; }
 .seg { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; background: var(--gray-3); padding: 4px; border-radius: 16px; }
 .seg button {
   min-height: 44px; border: none; border-radius: 12px; background: transparent; color: var(--silver);
