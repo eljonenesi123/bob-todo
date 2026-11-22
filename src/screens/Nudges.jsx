@@ -32,6 +32,7 @@ export default function Nudges({ profile, update }) {
   const [permission, setPermission] = useState(supported ? Notification.permission : 'unsupported')
   const [subscribed, setSubscribed] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
   const today = toISO()
   const snoozed = profile?.snoozed_on === today
 
@@ -43,9 +44,16 @@ export default function Nudges({ profile, update }) {
 
   async function turnOn() {
     setBusy(true)
-    const result = await enablePush().catch(() => 'error')
+    setError('')
+    try {
+      const result = await enablePush()
+      setSubscribed(result === 'granted')
+      if (result !== 'granted') setError(`Permission: ${result}`)
+    } catch (e) {
+      setSubscribed(false)
+      setError(e?.message || String(e))
+    }
     setPermission(supported ? Notification.permission : 'unsupported')
-    setSubscribed(result === 'granted')
     setBusy(false)
   }
 
@@ -78,6 +86,7 @@ export default function Nudges({ profile, update }) {
             </button>
           )}
         </div>
+        {error && <p className="error" role="alert">Couldn't turn on nudges: {error}</p>}
       </motion.section>
 
       <motion.section className="panel" {...rise(2)}>

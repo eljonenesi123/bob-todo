@@ -13,10 +13,11 @@ async function saveSubscription(sub) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
   const json = sub.toJSON()
-  await supabase.from('push_subscriptions').upsert(
+  const { error } = await supabase.from('push_subscriptions').upsert(
     { user_id: user.id, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth },
     { onConflict: 'endpoint' }
   )
+  if (error) throw new Error(`Saving device failed: ${error.message}`)
 }
 
 export async function getSubscription() {
