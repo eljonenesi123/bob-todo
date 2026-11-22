@@ -31,6 +31,10 @@
 }
 
 * { box-sizing: border-box; }
+/* iOS Home Screen app bug: with the translucent status bar, iOS can size the page one status-bar
+   height too short at launch, leaving a gap under the bottom tabs. Making the page at least
+   that much taller fills it. On other devices the inset is 0, so nothing changes. */
+html { min-height: calc(100% + env(safe-area-inset-top)); }
 body { margin: 0; min-height: 100dvh; background: var(--gray); }
 button, input, textarea, select { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
