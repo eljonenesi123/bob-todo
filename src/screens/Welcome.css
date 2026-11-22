@@ -23,3 +23,4 @@
 .welcome-form { margin-top: auto; display: flex; flex-direction: column; gap: 14px; }
 .welcome-hint { margin: 4px 0 0; font-size: 13px; color: var(--muted); text-align: center; line-height: 1.5; }
 .code-field { text-align: center; font-size: 28px; font-weight: 800; letter-spacing: 10px; }
+.welcome-form-title { margin: 0 0 4px; font-size: 20px; font-weight: 800; color: var(--silver); }

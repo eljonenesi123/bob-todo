@@ -62,6 +62,7 @@ export default function Welcome() {
         {step === 'email' ? (
           <motion.form key="email" className="welcome-form" onSubmit={sendCode}
             {...rise(0.55)} exit={{ opacity: 0, y: -12 }}>
+            <h2 className="welcome-form-title">Sign in or create your account</h2>
             <label className="label" htmlFor="email">Your email</label>
             <input id="email" className="field" type="email" required autoComplete="email"
               placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -69,12 +70,13 @@ export default function Welcome() {
             <button className="btn btn-primary" disabled={busy}>
               {busy ? 'Sending…' : 'Send me a code'}
             </button>
-            <p className="welcome-hint">No password needed. We'll email you a 6-digit code.</p>
+            <p className="welcome-hint">New here? The code creates your account.<br />No password, ever.</p>
           </motion.form>
         ) : (
           <motion.form key="code" className="welcome-form" onSubmit={verifyCode}
             initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <label className="label" htmlFor="code">Code sent to {email}</label>
+            <h2 className="welcome-form-title">Check your email</h2>
+            <label className="label" htmlFor="code">Enter the code we sent to {email}</label>
             <input id="code" className="field code-field" inputMode="numeric" autoComplete="one-time-code"
               maxLength={8} required placeholder="••••••" value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
