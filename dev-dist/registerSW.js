@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/bob-todo/dev-sw.js?dev-sw', { scope: '/bob-todo/', type: 'module' })
