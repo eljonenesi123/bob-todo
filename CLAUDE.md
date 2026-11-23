@@ -18,7 +18,8 @@ Core idea: a calm daily planner that **nudges her with push notifications** only
 
 Accounts (since 2026-11-22 both have **the same features**):
 - Each person has their own tasks (RLS), streak, rewards and notifications.
-- The Notes tab has two sides for both: **For you** (notes and rewards received) and **Write to <name>** (send notes and rewards to the other).
+- The **Letters** tab (called Notes until 2026-11-23; code and table still say `notes`) has two sides for both: **For you** (letters and rewards received, reply to a letter) and **Write to <name>** (send letters and rewards to the other).
+- The **Notebook** tab has **Pages** (free text or a list, private unless shared) and **Countdowns** (trips and other days).
 - Each can turn on "Tell <name> when I finish my day".
 - `profiles.role` ('admin' for Eljon) no longer changes anything in the app; it's only kept in the data. Copy uses the other person's display name, never "she/her".
 
@@ -76,7 +77,7 @@ public/icons/*, apple-touch-icon.png, favicon.svg   Sun-on-yellow app icons
 src/main.jsx               React root
 src/App.jsx                Session gate: Welcome (signed out) → Setup (first run) → TasksProvider + Shell
                            Splash (src/components/Splash.*) on top for ≥1.6s: Tally mark draws itself + quote of the day
-src/Shell.jsx              Tabs (today/progress/notes/nudges), Notes switch (For you / Write to <name>), BottomNav,
+src/Shell.jsx              Tabs (today/notebook/notes/progress/nudges), Letters switch (For you / Write to <name>), BottomNav,
                            Day-complete overlay, syncPush(); passes partner + names down
 src/sw.js                  Service worker: precache, offline navigation, 'push' + 'notificationclick', app badge
 src/index.css              Global tokens (colors, fonts), .screen/.btn/.field basics
@@ -88,11 +89,16 @@ src/hooks/useTasks.js      Fetch tasks/completions/subtasks, realtime sync, toda
                            toggle, addTask (with steps + due_on), updateTask, moveToTomorrow, reorder (positions),
                            removeTask (archive), addStep, toggleStep, removeStep
 src/hooks/useProfile.js    Own profile, update(); auto-saves browser timezone
-src/hooks/useNotes.js      Notes/rewards for the signed-in user; openNote, claimReward, author names
+src/hooks/useNotes.js      Letters (received and written) and rewards; openNote, claimReward, sendReply, repliesTo, answers, author names
+src/hooks/useNotebook.js   Pages and list lines, realtime; savePage (notices edits from another device), setPage (pin/share), items
+src/hooks/useCountdowns.js Countdowns and trips, realtime; add, update, remove
 src/hooks/usePartner.js    The other account (id, display_name) + cleanName()
 
 src/lib/supabase.js        createClient(URL, PUBLISHABLE_KEY)
 src/lib/dates.js           toISO (local YYYY-MM-DD), addDays, isDueOn (repeat rules + carry-over), greeting, prettyDate
+src/lib/rows.js            allRows(): fetch every row, 1000 at a time (Supabase's limit per request)
+src/lib/pageDraft.js       The writing on one open page: autosave, offline copy in localStorage, conflicts
+src/lib/countdown.js       daysUntil, inWords, checkInDue, nextUp (the one line on Today)
 src/lib/stats.js           dayStatus, currentStreak, bestStreak, weekBars, monthGrid, doneLast7Days
 src/lib/quotes.js          20 original quotes; quoteOfTheDay() by day-of-year (SAME list as the Edge Function)
 src/lib/categories.js      CATEGORIES + REPEATS
@@ -105,7 +111,10 @@ src/screens/Welcome.*      Email → 6-digit code sign-in ("Sign in or create yo
 src/screens/Setup.*        First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
 src/screens/Today.*        Planner page: "Good evening, <name>" at the top, date masthead, tally, day strip (today + 5), legal-pad list, Big three, steps
 src/screens/Progress.*     Streak numeral + tally marks, week bars, pen-marked month calendar, next reward
-src/screens/Notes.*        "For you": surprises, locked-note count, rewards (claim), opened notes
+src/screens/Notebook.*     Pages list + Pages/Countdowns switch; search appears from 8 pages
+src/screens/PageEditor.jsx One open page or list: writes itself down, pin, share, delete (two taps)
+src/screens/Countdowns.jsx Countdown list, "Done" for a check-in
+src/screens/Notes.*        "For you" (Letters tab): surprises and replies, locked count, rewards (claim), opened letters
 src/screens/NotesAdmin.jsx "Write to <name>": notes (after a finished day / surprise at a time), rewards, real delivery status
 src/screens/Nudges.*       Notifications switch (checks the database) + errors, snooze, "Tell Eljon when I finish my day",
                            nudge style, times, name, sign out (no explainer texts: kept uncluttered on purpose)
@@ -117,10 +126,13 @@ src/components/AddTaskSheet.jsx Paper bottom sheet for new AND edit (editing pro
 src/components/FocusTimer.*     Full-screen focus timer (10/25/45 min, pause, five more, mark done)
 src/components/DayStrip.jsx     Today + next 5 days with task-count dots
 src/components/DayComplete.*    Full-screen celebration + sealed note to open
-src/components/BottomNav.jsx    4 tabs, yellow dot on Notes for new surprises, on Nudges when this phone couldn't connect
+src/components/LetterReply.jsx  Reply box under an open letter (Letters and Day complete)
+src/components/NextUp.*         One line on Today: nearest countdown, or the check-in to do
+src/components/CountdownSheet.jsx Paper sheet to add/edit a countdown or trip
+src/components/BottomNav.jsx    5 tabs (that's the maximum), yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
 
 supabase/functions/send-nudges/index.ts  The nudge engine (see §7)
-supabase/sql/01..05_*.sql                Schema history (05 must be run before deploying the 2026-11-22 batch, see §9)
+supabase/sql/01..07_*.sql                Schema history (what still has to be run: see §9)
 ```
 
 ---
@@ -135,11 +147,14 @@ All tables have **RLS on**. Users only see their own rows unless stated.
 - **tasks**: `title`, `category`, `is_big3`, `repeat` ('once'|'daily'|'weekdays'|'weekly'), `remind_at` (time), `due_on` (date: the day it's planned for / start date), `archived` (soft delete), `position` (list order).
 - **task_completions**: `(task_id, done_on)` primary key. One row per task per day done. Streaks/history come from this.
 - **subtasks** ("steps"): `task_id`, `title`, `done_at` (persistent, not per day), `position`.
-- **notes**: `author_id`, `recipient_id`, `body`, `kind` ('day_complete'|'surprise'), `deliver_at`, `notified_at` (set only after a device accepted the push), `notify_error` (last failed try), `opened_at`. Recipient can only update `opened_at` and only sees surprises once `deliver_at <= now()`.
+- **notes** (letters): `author_id`, `recipient_id`, `body`, `kind` ('day_complete'|'surprise'|'reply'), `reply_to` (the letter it answers), `deliver_at`, `notified_at` (set only after a device accepted the push), `notify_error` (last failed try), `opened_at`. Recipient can only update `opened_at` and only sees surprises once `deliver_at <= now()`.
 - **rewards**: `title`, `streak_required`, `notified_at`, `claimed_at`. Recipient can only update `claimed_at`.
 - **push_subscriptions**: one row per device (`endpoint` unique, `p256dh`, `auth`). `push_device_count(person)` (security definer) tells either of you how many devices a person has (count only).
 - **nudge_log**: `(user_id, kind, ref, sent_on)` unique. Server-only (RLS on, no policies). Prevents duplicate pushes.
-- Realtime publication includes: tasks, task_completions, subtasks.
+- **notebook_pages**: `kind` ('note'|'list'), `title`, `body`, `pinned`, `shared_with`, `updated_at` (trigger: moves only when title/body change; the app saves with `.eq('updated_at', base)` so it never overwrites a newer version). **notebook_items**: lines of a list (`done_at`, `position`).
+- **countdowns**: `title`, `on_date`, `is_trip`, `checkin_at` (time of day, the day before; null = no reminder), `checked_in_at`, `shared_with`.
+- Pages and countdowns are seen and edited by `user_id` and `shared_with`; only the owner can delete or stop sharing. New tables need explicit GRANTs (see SQL 07).
+- Realtime publication includes: tasks, task_completions, subtasks, notebook_pages, notebook_items, countdowns.
 - Cron: job `bob-nudges` runs every 5 minutes → `net.http_post` to the Edge Function with header `x-cron-secret`.
 
 ### Task rules (keep app and Edge Function identical)
@@ -150,6 +165,7 @@ All tables have **RLS on**. Users only see their own rows unless stated.
   - once: on `due_on`, and **carries over** every following day until completed (UI shows "from Monday")
 - Future days (`planFor`) show one-offs with `due_on === day` plus repeating tasks; tasks can't be completed on future days, but steps can be ticked early.
 - Steps: ticking the last open step completes the task for today; unticking a step reopens it.
+- Completions are loaded for the last 60 days (streaks, Progress) **plus every older completion of a one-off task**; without those, old finished one-offs carry over onto today again (fixed 2026-11-23, in the app and the Edge Function).
 - Streak: consecutive fully-done days; days with nothing planned neither count nor break it; today only counts once complete.
 
 ---
@@ -170,8 +186,9 @@ Runs every 5 min. For every profile, in their local timezone:
 
 - **Someone finished today's list** and their `share_day_done` is on: one push to the other person's devices ("🎉 Ana finished today's list"), respecting the receiver's quiet hours, once per day. Works even if the finisher's own phone isn't connected.
 - Everything below goes to each person about their own day and needs that person to have a device; without one nothing is sent (and notes stay unsent, not falsely marked).
+- **Online check-in**: the day before a trip, from the trip's `checkin_at` on, once per person and trip date (`nudge_log` kind `checkin`), to the owner and `shared_with`, unless checked in. Ignores snooze and a finished day; waits for quiet hours to end unless the picked time is inside them; if it couldn't be delivered it retries, also on the day of the trip.
 0. Skip during quiet hours (it fires when they end, within a 2h window).
-1. **Surprise notes** whose `deliver_at` has passed (ignore snooze) → "Bob has a message for you". `notified_at` is set only if a device accepted it; otherwise `notify_error` is set and it retries next run. A note she opens in the app first is never pushed.
+1. **Surprise letters and replies** whose `deliver_at` has passed (ignore snooze) → "Bob has a message for you". `notified_at` is set only if a device accepted it; otherwise `notify_error` is set and it retries next run. A note she opens in the app first is never pushed.
 2. **Rewards** just unlocked by the streak → "Reward unlocked!"
 3. Stop here if `snoozed_on = today`.
 4. **Quote of the day** at `quote_time` (default 08:00): quote + "N tasks on today's list".
@@ -234,6 +251,12 @@ Must verify after the last commit (`5400f36 Steps, 5-day planning, daily quote, 
 - [x] New look is live (checked 2026-11-22: the Pages bundle contains the Today page strings)
 - [ ] New look reviewed on iPhone + PC; fix visual bugs from screenshots (needs Eljon on the real devices)
 
+Notebook, countdowns, replies (2026-11-23). To ship it, in this order:
+- [ ] Run `supabase/sql/07_notebook_countdowns_replies.sql` in the SQL Editor (the last line must answer 3)
+- [ ] Redeploy the Edge Function (crash fix, check-in reminder, replies, 60-day fix), check Verify JWT is still off
+- [ ] Push to main
+- [ ] Test on the iPhone: write a page, tick a list, add a trip for tomorrow (check-in push), reply to a letter
+
 Batch of 2026-11-22 (honest Nudges switch, delivery status, quote fix, cleanup, all screens restyled, edit task, move to tomorrow, reorder, focus timer, "she finished her day"). To ship it, in this order:
 - [ ] Run `supabase/sql/05_order_sharing_delivery.sql` in the SQL Editor
 - [ ] Redeploy the Edge Function (paste `supabase/functions/send-nudges/index.ts`, Deploy, check Verify JWT is still off)
@@ -246,6 +269,7 @@ Equal features (2026-11-22, after the batch above):
 - [ ] Eljon turns on Nudges on his own phone (Bob → Nudges → switch) so he gets notifications too
 
 Backlog (ask Eljon to prioritise; her feedback decides):
+- Notebook line to a task on Today; someday list; undo after delete (ideas of 2026-11-23, left out to keep screens light)
 - Nightly 1-tap mood check-in
 - Albanian/English language switch (Eljon builds multilingual sites: EN/SQ/DE)
 - Keyboard way to reorder tasks (drag is pointer-only today)

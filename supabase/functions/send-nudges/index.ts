@@ -56,6 +56,20 @@ type Task = { id: string; repeat: string; due_on: string | null; created_at: str
 type Completion = { task_id: string; done_on: string }
 type Sub = { id: string; user_id: string; endpoint: string; p256dh: string; auth: string }
 
+// Every row of a query, 1000 at a time. Throws if a page fails: with half the data, finished tasks
+// would look open and people would get nudges for nothing.
+const PAGE = 1000
+// deno-lint-ignore no-explicit-any
+async function allRows<T>(makeQuery: () => any): Promise<T[]> {
+  const rows: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await makeQuery().range(from, from + PAGE - 1)
+    if (error) throw new Error(`load failed: ${error.message}`)
+    rows.push(...data)
+    if (data.length < PAGE) return rows
+  }
+}
+
 // ---------- dates (same rules as the app) ----------
 function local(tz: string) {
   let parts: Record<string, string>
@@ -154,14 +168,15 @@ function message(kind: string, ctx: { name: string; style: string; total: number
 }
 
 // ---------- sending ----------
-// Returns how many devices accepted the push (0 = nobody got it)
-async function sendToAll(subs: Sub[], payload: Record<string, unknown>) {
+// Returns how many devices accepted the push (0 = nobody got it).
+// ttl: how long (seconds) the push service keeps trying when the phone is off
+async function sendToAll(subs: Sub[], payload: Record<string, unknown>, ttl = 3600) {
   const results: number[] = await Promise.all(subs.map(async (s): Promise<number> => {
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
         JSON.stringify(payload),
-        { TTL: 3600 },
+        { TTL: ttl },
       )
       return 1
     } catch (e) {
@@ -186,12 +201,15 @@ type Profile = any
 async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, sent: string[], partners: Profile[], byUser: Map<string, Sub[]>) {
   const now = local(p.timezone || 'Europe/Tirane')
 
-  const [{ data: tasks }, { data: comps }] = await Promise.all([
-    db.from('tasks').select('*').eq('user_id', p.id).eq('archived', false),
-    db.from('task_completions').select('task_id, done_on').eq('user_id', p.id).gte('done_on', addDays(now.date, -60)),
+  const since = addDays(now.date, -60)
+  const [t, recent, older] = await Promise.all([
+    allRows<Task>(() => db.from('tasks').select('*').eq('user_id', p.id).eq('archived', false).order('id')),
+    allRows<Completion>(() => db.from('task_completions').select('task_id, done_on').eq('user_id', p.id).gte('done_on', since).order('done_on').order('task_id')),
+    // One-off tasks finished before that must stay finished (same rule as the app)
+    allRows<Completion>(() => db.from('task_completions').select('task_id, done_on, tasks!inner(repeat)').eq('user_id', p.id)
+      .eq('tasks.repeat', 'once').eq('tasks.archived', false).lt('done_on', since).order('done_on').order('task_id')),
   ])
-  const t = (tasks ?? []) as Task[]
-  const c = (comps ?? []) as Completion[]
+  const c = [...older, ...recent]
   const today = day(t, c, now.date)
   const total = today.due.length
   const done = today.done
@@ -199,8 +217,8 @@ async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, s
   const bigLeft = today.due.filter((x) => x.is_big3 && !today.doneIds.has(x.id)).length
   const st = streak(t, c, now.date)
   const name = (p.display_name && !p.display_name.includes('@')) ? p.display_name : ''
-  const push = async (payload: Record<string, unknown>, label: string) => {
-    const delivered = await sendToAll(subs, { badge: left, url: './', ...payload })
+  const push = async (payload: Record<string, unknown>, label: string, ttl?: number) => {
+    const delivered = await sendToAll(subs, { badge: left, url: './', ...payload }, ttl)
     sent.push(`${p.id.slice(0, 6)}:${label}${delivered ? '' : ':failed'}`)
     return delivered
   }
@@ -215,21 +233,48 @@ async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, s
       if (inQuiet(aNow.minutes, a.quiet_start ?? '22:30', a.quiet_end ?? '08:00')) continue
       if (await once(a.id, 'partner_day_done', p.id, now.date)) {
         const who = name || 'Your person'
-        const n = await sendToAll(aSubs, { title: `🎉 ${who} finished today's list`, body: `${total} of ${total} done. Maybe leave a note?`, tag: `done-${p.id}`, url: './' })
+        const n = await sendToAll(aSubs, { title: `🎉 ${who} finished today's list`, body: `${total} of ${total} done. Maybe leave a letter?`, tag: `done-${p.id}`, url: './' })
         sent.push(`${a.id.slice(0, 6)}:partner_day_done${n ? '' : ':failed'}`)
       }
     }
   }
 
   if (!subs.length) return // this person has no phone connected: nothing else to send
-  if (inQuiet(now.minutes, p.quiet_start ?? '22:30', p.quiet_end ?? '08:00')) return
+  const quiet = (min: number) => inQuiet(min, p.quiet_start ?? '22:30', p.quiet_end ?? '08:00')
 
-  // 1. Surprise notes whose time has come (even when snoozed: he chose the moment)
-  const { data: notes } = await db.from('notes').select('id, author_id')
-    .eq('recipient_id', p.id).eq('kind', 'surprise').is('notified_at', null).is('opened_at', null)
+  // Online check-in, the day before a trip, at the time picked for that trip.
+  // Goes out even when snoozed or when the day is done, and inside quiet hours only if such a time was picked.
+  // If it couldn't be delivered the day before (phone off), it still goes out on the day of the trip.
+  const { data: trips, error: tripErr } = await db.from('countdowns').select('id, title, on_date, checkin_at')
+    .or(`user_id.eq.${p.id},shared_with.eq.${p.id}`).eq('is_trip', true).not('checkin_at', 'is', null)
+    .is('checked_in_at', null).in('on_date', [now.date, addDays(now.date, 1)])
+  if (tripErr) console.error('countdowns', tripErr.message) // e.g. SQL 07 not run yet: everything else still works
+  for (const trip of trips ?? []) {
+    const at = toMin(trip.checkin_at)
+    const isToday = trip.on_date === now.date
+    if (!isToday && now.minutes < at) continue
+    if (quiet(now.minutes) && (isToday || !quiet(at))) continue
+    if (!await once(p.id, 'checkin', trip.id, trip.on_date)) continue
+    const ok = await push({
+      title: `✈️ ${trip.title} is ${isToday ? 'today' : 'tomorrow'}`,
+      body: 'Time to do your online check-in.',
+      tag: `checkin-${trip.id}`,
+    }, 'checkin', 12 * 3600)
+    // Nobody got it: forget we tried, so the next run tries again
+    if (!ok) await db.from('nudge_log').delete().match({ user_id: p.id, kind: 'checkin', ref: trip.id, sent_on: trip.on_date })
+  }
+
+  if (quiet(now.minutes)) return
+
+  // 1. Surprise letters whose time has come, and replies (even when snoozed)
+  const { data: notes } = await db.from('notes').select('id, author_id, kind')
+    .eq('recipient_id', p.id).in('kind', ['surprise', 'reply']).is('notified_at', null).is('opened_at', null)
     .lte('deliver_at', new Date().toISOString())
   for (const n of notes ?? []) {
-    const ok = await push({ title: '💌 Bob has a message for you', body: `From ${names.get(n.author_id) || 'someone special'}. Open Bob to read it.`, tag: `note-${n.id}` }, 'surprise')
+    const from = names.get(n.author_id) || 'someone special'
+    const ok = await push(n.kind === 'reply'
+      ? { title: `💌 ${from} replied to your letter`, body: 'Open Bob to read it.', tag: `note-${n.id}` }
+      : { title: '💌 Bob has a message for you', body: `From ${from}. Open Bob to read it.`, tag: `note-${n.id}` }, n.kind)
     // Only mark it sent when a device really accepted it; otherwise retry on the next run
     const { error } = await db.from('notes').update(ok
       ? { notified_at: new Date().toISOString(), notify_error: null }

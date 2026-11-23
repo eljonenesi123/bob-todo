@@ -7,6 +7,7 @@ import DayStrip from '../components/DayStrip'
 import TaskRow from '../components/TaskRow'
 import AddTaskSheet from '../components/AddTaskSheet'
 import FocusTimer from '../components/FocusTimer'
+import NextUp from '../components/NextUp'
 import { readFocus } from '../lib/focus'
 import './Today.css'
 
@@ -44,7 +45,7 @@ function RowList({ tasks, big, onReorder, rowProps }) {
   )
 }
 
-export default function Today({ name }) {
+export default function Today({ name, countdowns, onOpenCountdowns }) {
   const data = useTaskData()
   const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, addStep, toggleStep, removeStep } = data
   const [selected, setSelected] = useState(null)
@@ -91,6 +92,8 @@ export default function Today({ name }) {
   return (
     <main className="today">
       <h1 className="hello">{name ? `${greeting()}, ${name}` : greeting()}</h1>
+
+      <NextUp countdowns={countdowns} today={today} onOpen={onOpenCountdowns} />
 
       <header className="masthead">
         <AnimatePresence mode="popLayout" initial={false}>

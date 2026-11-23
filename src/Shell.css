@@ -6,7 +6,7 @@
   background: var(--gray-deep);
   padding: 0 8px max(12px, env(safe-area-inset-bottom));
 }
-.bottom-nav-inner { max-width: 480px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.bottom-nav-inner { max-width: 480px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .nav-btn {
   position: relative; background: none; border: none; color: var(--muted); cursor: pointer;
   min-height: 60px; padding-top: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
@@ -80,7 +80,7 @@ button.pad-line { cursor: pointer; }
 .field-hint { margin: 6px 0 0; font-size: 13px; line-height: 1.4; color: var(--pencil); }
 .pad-h label { cursor: pointer; }
 
-/* Notes tab: "For you" / "Write to …" on the desk, under the heading */
+/* Letters and Notebook tabs: "For you" / "Write to …" on the desk, under the heading */
 .notes-switch { margin-top: 16px; }
 .notes-switch .pill { border-color: var(--gray-3); color: var(--silver); }
 .notes-switch .pill.is-on { background: var(--silver); border-color: var(--silver); color: var(--ink); }

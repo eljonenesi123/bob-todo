@@ -78,3 +78,19 @@
   cursor: pointer; display: flex; align-items: center; justify-content: center;
 }
 .del-btn:hover { color: #8E2F26; }
+
+/* Replying to a letter */
+.letter-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: -10px 0 -4px; }
+.letter-quote {
+  margin: 0; padding-left: 12px; border-left: 2px solid var(--margin-line); font-size: 14px; line-height: 1.4; color: var(--pencil);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow-wrap: anywhere;
+}
+.letter-body { overflow-wrap: anywhere; }
+.letter-reply { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; margin-top: 4px; }
+.letter-reply form { width: 100%; }
+.reply-sent { width: 100%; padding-left: 12px; border-left: 2px solid var(--margin-line); }
+.reply-sent p {
+  margin: 2px 0 0; font-family: var(--serif); font-style: italic; font-size: 18px; line-height: 1.4; white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.reply-actions { display: flex; align-items: center; gap: 14px; margin-top: 12px; }
+.ink-btn.is-solid { background: var(--ink); color: var(--paper); }

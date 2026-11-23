@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
 import { currentStreak } from '../lib/stats'
+import LetterReply from './LetterReply'
 import '../screens/Notes.css' // envelope + letter styles
 import './DayComplete.css'
 
@@ -36,7 +37,7 @@ export default function DayComplete({ notes, total, onClose }) {
                   exit={{ opacity: 0, y: -10 }}>
                   <span className="envelope-seal" aria-hidden="true" />
                   <span className="envelope-text">
-                    <strong>A note from {notes.authorName(note)}</strong>
+                    <strong>A letter from {notes.authorName(note)}</strong>
                     <span>You unlocked it. Tap to open.</span>
                   </span>
                 </motion.button>
@@ -46,6 +47,7 @@ export default function DayComplete({ notes, total, onClose }) {
                   transition={{ type: 'spring', stiffness: 160, damping: 18 }}>
                   <p className="letter-from">From {notes.authorName(note)}</p>
                   <p className="letter-body">{note.body}</p>
+                  <LetterReply note={note} notes={notes} />
                 </motion.div>
               )}
             </AnimatePresence>

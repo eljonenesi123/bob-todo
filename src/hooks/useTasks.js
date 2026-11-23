@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { toISO, addDays, isDueOn } from '../lib/dates'
+import { allRows } from '../lib/rows'
 
 // List order: the place she dragged it to, then oldest first
 const byPosition = (a, b) => (a.position ?? 0) - (b.position ?? 0) || a.created_at.localeCompare(b.created_at)
@@ -9,11 +10,18 @@ const missingColumn = (error) => error && (error.code === 'PGRST204' || error.co
 
 async function fetchAll() {
   const now = toISO()
-  const [t, c, s] = await Promise.all([
-    supabase.from('tasks').select('*').eq('archived', false).order('created_at'),
-    supabase.from('task_completions').select('task_id, done_on').gte('done_on', addDays(now, -60)),
-    supabase.from('subtasks').select('*').order('position').order('created_at'),
+  const since = addDays(now, -60)
+  const [t, recent, older, s] = await Promise.all([
+    allRows(() => supabase.from('tasks').select('*').eq('archived', false).order('created_at').order('id')),
+    // Streaks and Progress look back 60 days
+    allRows(() => supabase.from('task_completions').select('task_id, done_on').gte('done_on', since).order('done_on').order('task_id')),
+    // One-off tasks finished before that must stay finished, or they would carry over onto today's list again
+    allRows(() => supabase.from('task_completions').select('task_id, done_on, tasks!inner(repeat)')
+      .eq('tasks.repeat', 'once').eq('tasks.archived', false).lt('done_on', since).order('done_on').order('task_id')),
+    allRows(() => supabase.from('subtasks').select('*').order('position').order('created_at').order('id')),
   ])
+  const error = recent.error || older.error
+  const c = error ? { error } : { data: [...older.data.map(({ task_id, done_on }) => ({ task_id, done_on })), ...recent.data] }
   return { t, c, s, now }
 }
 
@@ -25,8 +33,11 @@ export function useTasks() {
   const [today, setToday] = useState(toISO())
 
   const apply = useCallback(({ t, c, s, now }) => {
-    if (!t.error) setTasks([...t.data].sort(byPosition))
-    if (!c.error) setCompletions(c.data)
+    // Tasks without their completions would all look unfinished, so take both or neither
+    if (!t.error && !c.error) {
+      setTasks([...t.data].sort(byPosition))
+      setCompletions(c.data)
+    }
     if (!s.error) setSubtasks(s.data)
     setToday(now)
     setLoading(false)

@@ -1,5 +1,6 @@
 const ICONS = {
   today: <><rect x="4" y="4" width="16" height="16" rx="4" /><path d="M8.5 12l2.5 2.5 4.5-5" /></>,
+  notebook: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 3v18M13 8h3" /></>,
   progress: <path d="M5 20V11M12 20V4M19 20v-6" />,
   notes: <><rect x="3" y="5" width="18" height="14" rx="3" /><path d="M3 8l9 6 9-6" /></>,
   nudges: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8" /><path d="M10 20a2 2 0 0 0 4 0" /></>,
@@ -7,8 +8,9 @@ const ICONS = {
 
 const TABS = [
   { id: 'today', label: 'Today' },
+  { id: 'notebook', label: 'Notebook' },
+  { id: 'notes', label: 'Letters' },
   { id: 'progress', label: 'Progress' },
-  { id: 'notes', label: 'Notes' },
   { id: 'nudges', label: 'Nudges' },
 ]
 

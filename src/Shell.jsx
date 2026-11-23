@@ -4,11 +4,14 @@ import { useTaskData } from './context/tasks'
 import { useProfile } from './hooks/useProfile'
 import { useNotes } from './hooks/useNotes'
 import { usePartner, cleanName } from './hooks/usePartner'
+import { useNotebook } from './hooks/useNotebook'
+import { useCountdowns } from './hooks/useCountdowns'
 import { syncPush } from './lib/push'
 import BottomNav from './components/BottomNav'
 import DayComplete from './components/DayComplete'
 import Today from './screens/Today'
 import Progress from './screens/Progress'
+import Notebook from './screens/Notebook'
 import Notes from './screens/Notes'
 import NotesAdmin from './screens/NotesAdmin'
 import Nudges from './screens/Nudges'
@@ -24,7 +27,10 @@ export default function Shell({ user }) {
   const { loading, todayTasks, today } = useTaskData()
   const notes = useNotes(user.id)
   const { partner, partnerName } = usePartner(user.id)
-  // Notes tab has two sides for both of you: what you received, and writing to the other
+  const notebook = useNotebook(user.id)
+  const countdowns = useCountdowns(user.id)
+  const [notebookView, setNotebookView] = useState('pages')
+  // Letters tab has two sides for both of you: what you received, and writing to the other
   const [notesView, setNotesView] = useState('inbox')
   const [celebrated, setCelebrated] = useState(readCelebrated)
 
@@ -47,16 +53,19 @@ export default function Shell({ user }) {
   }
 
   const switcher = (
-    <div className="pills notes-switch" role="group" aria-label="Notes">
+    <div className="pills notes-switch" role="group" aria-label="Letters">
       <button type="button" className={`pill ${notesView === 'inbox' ? 'is-on' : ''}`} aria-pressed={notesView === 'inbox'}
         onClick={() => setNotesView('inbox')}>For you{notes.hasNew ? ' (new)' : ''}</button>
       <button type="button" className={`pill ${notesView === 'write' ? 'is-on' : ''}`} aria-pressed={notesView === 'write'}
-        onClick={() => setNotesView('write')}>{partnerName ? `Write to ${partnerName}` : 'Write a note'}</button>
+        onClick={() => setNotesView('write')}>{partnerName ? `Write to ${partnerName}` : 'Write a letter'}</button>
     </div>
   )
 
   const screens = {
-    today: <Today name={cleanName(profile?.display_name)} />,
+    today: <Today name={cleanName(profile?.display_name)} countdowns={countdowns}
+      onOpenCountdowns={() => { setNotebookView('countdowns'); setTab('notebook') }} />,
+    notebook: <Notebook userId={user.id} notebook={notebook} countdowns={countdowns} partner={partner} partnerName={partnerName}
+      view={notebookView} onView={setNotebookView} />,
     progress: <Progress notes={notes} />,
     notes: notesView === 'write'
       ? <NotesAdmin userId={user.id} partner={partner} partnerName={partnerName} switcher={switcher} />

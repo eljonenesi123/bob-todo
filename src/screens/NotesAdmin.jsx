@@ -74,7 +74,7 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
     const row = { recipient_id: to, body: body.trim(), kind }
     if (kind === 'surprise') row.deliver_at = when ? new Date(when).toISOString() : new Date().toISOString()
     const { error } = await supabase.from('notes').insert(row)
-    if (error) return setMsg('The note wasn’t saved. Check your connection and try again.')
+    if (error) return setMsg('The letter wasn’t saved. Check your connection and try again.')
     setBody(''); setWhen('')
     setMsg(kind === 'surprise' ? 'Saved. Bob sends it at that time.' : `Saved. ${who === 'them' ? 'It' : who} opens after a finished day.`)
     reload()
@@ -98,11 +98,11 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
   return (
     <main className="paper-page tab-screen admin">
       <header className="desk-head">
-        <h1 className="page-title">Notes</h1>
+        <h1 className="page-title">Letters</h1>
         {switcher}
       </header>
 
-      <section className="pad" aria-label="Write notes and rewards">
+      <section className="pad" aria-label="Write letters and rewards">
         {data.loaded && data.people.length === 0 && (
           <p className="pad-note admin-empty">Nobody else has signed up yet. Once they do, you can write to them here.</p>
         )}
@@ -125,7 +125,7 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
         )}
 
         <form className="pad-section" onSubmit={sendNote}>
-          <h2 className="pad-h">Write a note</h2>
+          <h2 className="pad-h">Write a letter</h2>
           <div className="pad-block admin-form">
             <div className="pills" role="group" aria-label="When it arrives">
               <button type="button" className={`pill ${kind === 'day_complete' ? 'is-on' : ''}`} aria-pressed={kind === 'day_complete'} onClick={() => setKind('day_complete')}>After a finished day</button>
@@ -139,7 +139,7 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
                 <input type="datetime-local" className="line-input" value={when} onChange={(e) => setWhen(e.target.value)} />
               </label>
             )}
-            <button className="btn btn-ink" disabled={!body.trim() || !to}>Save note</button>
+            <button className="btn btn-ink" disabled={!body.trim() || !to}>Save letter</button>
             {msg && <p className="field-hint" role="status">{msg}</p>}
           </div>
         </form>
@@ -160,7 +160,7 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
 
         {data.notes.length > 0 && (
           <section className="pad-section">
-            <h2 className="pad-h">Your notes</h2>
+            <h2 className="pad-h">Your letters</h2>
             <ul className="ruled">
               {data.notes.map((n) => {
                 const s = noteStatus(n, devices, who)
@@ -169,11 +169,11 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
                     <span className="row-margin" aria-hidden="true"><span className={`status-dot ${s.tone}`} /></span>
                     <span className="line-body">
                       <span className="admin-note-body">{n.body}</span>
-                      <span className={`line-sub status-${s.tone}`}>{s.label}</span>
+                      <span className={`line-sub status-${s.tone}`}>{n.kind === 'reply' ? `Your reply. ${s.label}` : s.label}</span>
                     </span>
                     {!n.opened_at && (
                       <span className="line-end">
-                        <button type="button" className="del-btn" aria-label="Delete note" onClick={() => remove('notes', n.id)}><TrashIcon /></button>
+                        <button type="button" className="del-btn" aria-label="Delete letter" onClick={() => remove('notes', n.id)}><TrashIcon /></button>
                       </span>
                     )}
                   </li>

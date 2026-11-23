@@ -109,7 +109,7 @@ export default function Progress({ notes }) {
                     </span>
                     <span className="line-body">
                       <span className="line-title"><span className={unlocked ? 'hl' : ''}>{nextReward.title}</span></span>
-                      <span className="line-sub">{unlocked ? 'You earned it. Claim it in Notes.' : `${plural(toGo, 'more day')} to unlock it`}</span>
+                      <span className="line-sub">{unlocked ? 'You earned it. Claim it in Letters.' : `${plural(toGo, 'more day')} to unlock it`}</span>
                     </span>
                   </div>
                 </div>

@@ -1,0 +1,15 @@
+/* The nearest countdown, one quiet line on the desk */
+.next-up { margin: -8px 22px 10px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; }
+.next-up-open {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0; border: none; background: none; cursor: pointer; text-align: left;
+  color: var(--muted); font-size: 16px; line-height: 1.35; overflow-wrap: anywhere;
+}
+.next-up-open strong { color: var(--silver); font-weight: 700; }
+.next-up-open:active { opacity: .7; }
+.next-up-mark { display: table; padding: 0 5px; margin: 2px 0 0 -5px; background: var(--yellow); color: var(--ink); font-weight: 700; border-radius: 2px; }
+.next-up-done {
+  flex-shrink: 0; min-height: 44px; padding: 0 18px; border: 1.5px solid var(--silver); border-radius: 999px;
+  background: none; color: var(--silver); font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.next-up-done:active { background: var(--gray-3); }
+.next-up .error { width: 100%; }

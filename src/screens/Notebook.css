@@ -1,0 +1,86 @@
+/* ---------- Notebook: pages, lists, countdowns ---------- */
+
+/* First line of the pad: the pen, then what to start */
+.new-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 54px; padding: 0 16px 12px 0; }
+.new-row .row-margin { margin-right: 5px; }
+.notebook .ink-btn:active { background: var(--rule); }
+.notebook button.pad-line:active, .count-open:active, .line-toggle:active { background: rgba(43, 45, 49, .06); }
+.notebook .blank { padding-top: 8px; }
+.notebook .find { margin-top: 0; margin-bottom: 14px; }
+.notebook .line-title, .count-line .line-title { overflow-wrap: anywhere; }
+.one-line { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.one-line:empty { display: none; }
+.pin { color: var(--pencil); }
+
+/* An open page */
+.page-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 14px; }
+.back-btn {
+  min-height: 44px; padding: 0 12px 0 0; border: none; background: none; color: var(--silver); cursor: pointer;
+  display: flex; align-items: center; gap: 4px; font-size: 17px; font-weight: 700;
+}
+.save-status { font-size: 14px; color: var(--muted); text-align: right; }
+.notebook .page-notice { margin-bottom: 18px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; font-size: 15px; line-height: 1.4; }
+.page-notice p { margin: 0; overflow-wrap: anywhere; }
+.page-notice .sheet-more { justify-content: flex-start; }
+.page-notice .theirs {
+  color: var(--pencil); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+}
+.notebook .pad-block > .big-input { border-bottom-color: transparent; }
+.notebook .pad-block > .big-input:focus { border-bottom-color: var(--ink); }
+
+/* Ruled writing that grows with the text (the hidden copy sets the height) */
+.grow {
+  display: grid; margin-top: 8px; min-height: 45dvh;
+  background: repeating-linear-gradient(to bottom, transparent 0 35px, var(--rule) 35px 36px);
+}
+.grow::after { content: attr(data-value) ' '; visibility: hidden; }
+.grow::after, .grow textarea {
+  grid-area: 1 / 1; min-width: 0; padding: 0 22px 0 66px; border: none; margin: 0;
+  font: 400 17px/36px var(--font); white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.grow textarea { position: relative; resize: none; overflow: hidden; background: none; color: var(--ink); outline: none; border-radius: 0; }
+.grow textarea::placeholder, .line-add input::placeholder { color: var(--pencil); }
+.grow textarea:focus-visible { outline: none; }
+
+/* A list */
+.page-lines { margin-top: 10px; }
+.page-lines:empty { border-top: none; }
+.page-line { display: flex; align-items: center; border-bottom: 1px solid var(--rule); }
+.line-toggle {
+  flex: 1; min-width: 0; min-height: 54px; padding: 0; border: none; background: none; color: inherit;
+  display: flex; align-items: center; text-align: left; cursor: pointer; font: inherit;
+}
+.page-line-text { flex: 1; min-width: 0; padding: 10px 4px 10px 13px; font-size: 17px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere; }
+.page-line.is-done .page-line-text { color: var(--pencil); }
+.page-line.is-done .page-line-text span { text-decoration: line-through; text-decoration-thickness: 2px; }
+.line-x {
+  width: 44px; height: 44px; margin-right: 8px; flex-shrink: 0; border: none; border-radius: 10px; background: none; color: var(--pencil);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.line-add { display: flex; align-items: center; min-height: 54px; padding-right: 16px; border-bottom: 1px solid var(--rule); }
+.line-add input {
+  flex: 1; min-width: 0; min-height: 52px; padding: 0 8px 0 13px; border: none; background: none; outline: none;
+  color: var(--ink); font-size: 17px; border-radius: 0;
+}
+.line-add:focus-within { border-bottom-color: var(--ink); }
+.notebook .page-actions { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Countdowns */
+.count-open {
+  flex: 1; min-width: 0; padding: 0; border: none; background: none; color: inherit; font: inherit;
+  display: flex; align-items: center; text-align: left; cursor: pointer;
+}
+.count-days { flex-direction: column; align-self: stretch; font-size: 12px; font-weight: 600; line-height: 1.1; color: var(--pencil); }
+.count-days strong { font-size: 24px; font-weight: 800; line-height: 1; color: var(--ink); font-variation-settings: 'wdth' 75; }
+.count-days .count-today { font-size: 16px; }
+.check-due { color: var(--ink); font-weight: 700; }
+.past { margin-top: 26px; }
+.past .line-title { color: var(--pencil); }
+
+/* Countdown sheet */
+.sheet-field { display: flex; flex-direction: column; }
+.sheet-check { display: flex; flex-direction: column; gap: 10px; }
+.check-time { display: flex; align-items: center; gap: 10px; padding-left: 34px; font-size: 16px; }
+.check-time .line-input { width: 120px; min-height: 44px; }
+.sheet-check .field-hint { margin: 0; padding-left: 34px; }
+.sheet-field .line-input { min-height: 48px; -webkit-appearance: none; appearance: none; text-align: left; }

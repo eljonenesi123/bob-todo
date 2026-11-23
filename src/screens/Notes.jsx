@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
 import { currentStreak } from '../lib/stats'
+import LetterReply from '../components/LetterReply'
 import './Notes.css'
 
 const fmtDay = (iso) => new Date(iso).getDate()
@@ -28,7 +29,7 @@ export default function Notes({ notes, allDone, switcher }) {
   return (
     <main className="paper-page tab-screen notes">
       <header className="desk-head">
-        <h1 className="page-title">Notes</h1>
+        <h1 className="page-title">Letters</h1>
         {switcher}
       </header>
 
@@ -38,7 +39,7 @@ export default function Notes({ notes, allDone, switcher }) {
             <button key={n.id} type="button" className="envelope" onClick={() => read(n)}>
               <span className="envelope-seal" aria-hidden="true" />
               <span className="envelope-text">
-                <strong>A message from {notes.authorName(n)}</strong>
+                <strong>{n.kind === 'reply' ? `${notes.authorName(n)} replied` : `A letter from ${notes.authorName(n)}`}</strong>
                 <span>Tap to open it</span>
               </span>
             </button>
@@ -46,7 +47,7 @@ export default function Notes({ notes, allDone, switcher }) {
         </div>
       )}
 
-      <section className="pad" aria-label="Your notes and rewards">
+      <section className="pad" aria-label="Your letters and rewards">
         <section className="pad-section">
           <h2 className="pad-h">Waiting for you</h2>
           <div className="ruled">
@@ -59,7 +60,7 @@ export default function Notes({ notes, allDone, switcher }) {
                 </svg>
               </span>
               <span className="line-body">
-                <span className="line-title">{waiting === 0 ? 'No notes waiting' : `${waiting} sealed note${waiting === 1 ? '' : 's'}`}</span>
+                <span className="line-title">{waiting === 0 ? 'No letters waiting' : `${waiting} sealed letter${waiting === 1 ? '' : 's'}`}</span>
                 <span className="line-sub">
                   {waiting === 0 ? 'New ones show up here.' : allDone ? 'Your day is done, so one is ready for you.' : 'Finish your day to open one.'}
                 </span>
@@ -99,12 +100,12 @@ export default function Notes({ notes, allDone, switcher }) {
 
         {notes.opened.length > 0 && (
           <section className="pad-section">
-            <h2 className="pad-h">Opened notes</h2>
+            <h2 className="pad-h">Opened letters</h2>
             <ul className="ruled">
               {notes.opened.map((n) => (
                 <li key={n.id}>
                   <button type="button" className="pad-line opened-line" onClick={() => read(n)}
-                    aria-label={`Note from ${fmt(n.opened_at)}: ${n.body}`}>
+                    aria-label={`Letter from ${fmt(n.opened_at)}: ${n.body}`}>
                     <span className="row-margin opened-date" aria-hidden="true">
                       <strong>{fmtDay(n.opened_at)}</strong>{fmtMonth(n.opened_at)}
                     </span>
@@ -119,15 +120,18 @@ export default function Notes({ notes, allDone, switcher }) {
 
       <AnimatePresence>
         {reading && (
-          <motion.div className="letter-overlay" onClick={() => setReading(null)}
+          <motion.div className="letter-overlay"
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div className="letter" role="dialog" aria-modal="true" aria-label={`Note from ${notes.authorName(reading)}`}
-              onClick={(e) => e.stopPropagation()}
+            <motion.div className="letter" role="dialog" aria-modal="true" aria-label={`Letter from ${notes.authorName(reading)}`}
               initial={reduce ? false : { scale: 0.92, y: 30, rotateX: -35 }} animate={{ scale: 1, y: 0, rotateX: 0 }} exit={{ opacity: 0 }}
               transition={{ type: 'spring', stiffness: 220, damping: 22 }}>
-              <p className="letter-from">From {notes.authorName(reading)}</p>
+              <div className="letter-top">
+                <p className="letter-from">From {notes.authorName(reading)}</p>
+                <button type="button" className="sheet-close" onClick={() => setReading(null)} autoFocus>Close</button>
+              </div>
+              {notes.answers(reading) && <p className="letter-quote">You wrote: {notes.answers(reading).body}</p>}
               <p className="letter-body">{reading.body}</p>
-              <button type="button" className="btn btn-ink" onClick={() => setReading(null)} autoFocus>Close</button>
+              <LetterReply key={reading.id} note={reading} notes={notes} />
             </motion.div>
           </motion.div>
         )}
