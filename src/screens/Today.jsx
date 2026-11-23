@@ -45,9 +45,9 @@ function RowList({ tasks, big, onReorder, rowProps }) {
   )
 }
 
-export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgress }) {
+export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgress, onNotice }) {
   const data = useTaskData()
-  const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, addStep, toggleStep, removeStep } = data
+  const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, restoreTask, addStep, toggleStep, removeStep, restoreStep } = data
   const [selected, setSelected] = useState(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -87,7 +87,18 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
   }
   const closeSheet = () => { setSheetOpen(false); setEditing(null) }
 
-  const rowProps = { today, future: !isToday, onToggle: toggle, onRemove: removeTask, onAddStep: addStep, onToggleStep: toggleStep, onRemoveStep: removeStep, onEdit: edit, onFocus: startFocus }
+  // Deleting offers a way back for a few seconds
+  async function withUndo(text, remove, restore) {
+    if (!await remove()) return onNotice({ text: 'It wasn’t deleted. Check your connection and try again.' })
+    onNotice({
+      text,
+      undo: async () => { if (!await restore()) onNotice({ text: 'It didn’t come back. Check your connection and try again.', undo: restore }) },
+    })
+  }
+  const deleteTask = (task) => withUndo(`Deleted “${task.title}”`, () => removeTask(task), () => restoreTask(task))
+  const deleteStep = (step) => withUndo(`Removed “${step.title}”`, () => removeStep(step), () => restoreStep(step))
+
+  const rowProps = { today, future: !isToday, onToggle: toggle, onRemove: deleteTask, onAddStep: addStep, onToggleStep: toggleStep, onRemoveStep: deleteStep, onEdit: edit, onFocus: startFocus }
 
   return (
     <main className="today">
@@ -174,7 +185,7 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
       </section>
 
       <AddTaskSheet open={sheetOpen} editing={editing} onClose={closeSheet} onAdd={addTask}
-        onSave={updateTask} onMoveTomorrow={moveToTomorrow} onDelete={removeTask}
+        onSave={updateTask} onMoveTomorrow={moveToTomorrow} onDelete={deleteTask}
         bigCount={todayTasks.filter((t) => t.is_big3).length} days={days} day={day} />
 
       <AnimatePresence>

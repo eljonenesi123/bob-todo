@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { sendLetter } from '../lib/photo'
 
 // Letters (table "notes") and rewards for this user, plus the letters they wrote, to show what a reply answers
 async function fetchMine(userId) {
@@ -65,14 +66,17 @@ export function useNotes(userId) {
   const answers = useCallback((note) => (note.reply_to ? state.notes.find((n) => n.id === note.reply_to) ?? null : null), [state.notes])
 
   // True when the reply was saved. It arrives right away, with a notification.
-  const sendReply = useCallback(async (note, body) => {
-    const { data, error } = await supabase.from('notes').insert({
-      recipient_id: note.author_id, body, kind: 'reply', reply_to: note.id, deliver_at: new Date().toISOString(),
-    }).select().single()
-    if (error) return false
-    setState((s) => ({ ...s, notes: [...s.notes, data] }))
-    return true
-  }, [])
+  const sendReply = useCallback(async (note, body, photo) => {
+    try {
+      const data = await sendLetter(userId, {
+        recipient_id: note.author_id, body, kind: 'reply', reply_to: note.id, deliver_at: new Date().toISOString(),
+      }, photo)
+      setState((s) => ({ ...s, notes: [...s.notes, data] }))
+      return true
+    } catch {
+      return false
+    }
+  }, [userId])
 
   const authorName = useCallback((note) => state.authors[note.author_id] || 'someone special', [state.authors])
 

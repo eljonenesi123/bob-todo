@@ -9,6 +9,7 @@ import { useCountdowns } from './hooks/useCountdowns'
 import { syncPush } from './lib/push'
 import BottomNav from './components/BottomNav'
 import DayComplete from './components/DayComplete'
+import UndoBar from './components/UndoBar'
 import Today from './screens/Today'
 import Progress from './screens/Progress'
 import Notebook from './screens/Notebook'
@@ -30,6 +31,9 @@ export default function Shell({ user }) {
   const notebook = useNotebook(user.id)
   const countdowns = useCountdowns(user.id)
   const [notebookView, setNotebookView] = useState('notes')
+  // The last thing deleted, with its way back: { text, undo }
+  const [notice, setNotice] = useState(null)
+  const closeNotice = useCallback(() => setNotice(null), [])
   // Letters tab has two sides for both of you: what you received, and writing to the other
   const [notesView, setNotesView] = useState('inbox')
   const [celebrated, setCelebrated] = useState(readCelebrated)
@@ -64,6 +68,7 @@ export default function Shell({ user }) {
   const screens = {
     today: <Today name={cleanName(profile?.display_name)} countdowns={countdowns}
       onOpenCountdowns={() => { setNotebookView('countdowns'); setTab('notebook') }}
+      onNotice={(n) => setNotice({ ...n, id: crypto.randomUUID() })}
       onOpenProgress={() => { setTab('progress'); window.scrollTo(0, 0) }} />,
     notebook: <Notebook userId={user.id} notebook={notebook} countdowns={countdowns} partner={partner} partnerName={partnerName}
       view={notebookView} onView={setNotebookView} />,
@@ -90,6 +95,13 @@ export default function Shell({ user }) {
 
       {/* Progress opens from Today, so it belongs to that tab */}
       <BottomNav tab={tab === 'progress' ? 'today' : tab} onChange={setTab} notesDot={notes.hasNew} nudgesDot={pushIssue} />
+
+      <AnimatePresence>
+        {notice && (
+          <UndoBar key={notice.id} text={notice.text} onClose={closeNotice}
+            onUndo={notice.undo && (() => { closeNotice(); notice.undo() })} />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showCelebration && (

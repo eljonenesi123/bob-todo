@@ -87,7 +87,7 @@ src/context/tasks.js           TasksContext + useTaskData()
 src/context/TasksProvider.jsx  Wraps useTasks(); sets app icon badge = tasks left today
 src/hooks/useTasks.js      Fetch tasks/completions/subtasks, realtime sync, todayTasks, planFor(iso),
                            toggle, addTask (with steps + due_on), updateTask, moveToTomorrow, reorder (positions),
-                           removeTask (archive), addStep, toggleStep, removeStep
+                           removeTask (archive) / restoreTask, addStep, toggleStep, removeStep / restoreStep (the Undo bar)
 src/hooks/useProfile.js    Own profile, update(); auto-saves browser timezone
 src/hooks/useNotes.js      Letters (received and written) and rewards; openNote, claimReward, sendReply, repliesTo, answers, author names
 src/hooks/useNotebook.js   Groups and the notes inside, realtime; saveGroup, removeGroup, saveNote (notices edits from another device), removeNote
@@ -96,6 +96,7 @@ src/hooks/usePartner.js    The other account (id, display_name) + cleanName()
 
 src/lib/supabase.js        createClient(URL, PUBLISHABLE_KEY)
 src/lib/dates.js           toISO (local YYYY-MM-DD), addDays, isDueOn (repeat rules + carry-over), greeting, prettyDate
+src/lib/photo.js           Letter photos: shrinkPhoto (1600px JPEG, drops location data), sendLetter (photo first, then the letter), photoUrl, deletePhoto
 src/lib/rows.js            allRows(): fetch every row, 1000 at a time (Supabase's limit per request)
 src/lib/countdown.js       daysUntil, inWords, checkInDue, nextUp (the one line on Today)
 src/lib/stats.js           dayStatus, currentStreak, bestStreak, weekBars, monthGrid, doneLast7Days
@@ -125,6 +126,8 @@ src/components/AddTaskSheet.jsx Paper bottom sheet for new AND edit (editing pro
 src/components/FocusTimer.*     Full-screen focus timer (10/25/45 min, pause, five more, mark done)
 src/components/DayStrip.jsx     Today + next 5 days with task-count dots
 src/components/DayComplete.*    Full-screen celebration + sealed note to open
+src/components/UndoBar.*        "Deleted …" with Undo, 8 seconds, shown by Shell (onNotice from Today)
+src/components/PhotoPicker.jsx, LetterPhoto.jsx  Pick one photo for a letter / show it in an open letter
 src/components/LetterReply.jsx  Reply box under an open letter (Letters and Day complete)
 src/components/NextUp.*         One line on Today: nearest countdown, or the check-in to do
 src/components/CountdownSheet.jsx Paper sheet to add/edit a countdown or trip
@@ -133,7 +136,7 @@ src/components/PaperSheet.jsx, CheckRow.jsx, BackButton.jsx  Shared pieces for s
 src/components/BottomNav.jsx    4 tabs, yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
 
 supabase/functions/send-nudges/index.ts  The nudge engine (see §7)
-supabase/sql/01..08_*.sql                Schema history (what still has to be run: see §9)
+supabase/sql/01..09_*.sql                Schema history (what still has to be run: see §9)
 ```
 
 ---
@@ -148,7 +151,7 @@ All tables have **RLS on**. Users only see their own rows unless stated.
 - **tasks**: `title`, `category`, `is_big3`, `repeat` ('once'|'daily'|'weekdays'|'weekly'), `remind_at` (time), `due_on` (date: the day it's planned for / start date), `archived` (soft delete), `position` (list order).
 - **task_completions**: `(task_id, done_on)` primary key. One row per task per day done. Streaks/history come from this.
 - **subtasks** ("steps"): `task_id`, `title`, `done_at` (persistent, not per day), `position`.
-- **notes** (letters): `author_id`, `recipient_id`, `body`, `kind` ('day_complete'|'surprise'|'reply'), `reply_to` (the letter it answers), `deliver_at`, `notified_at` (set only after a device accepted the push), `notify_error` (last failed try), `opened_at`. Recipient can only update `opened_at` and only sees surprises once `deliver_at <= now()`.
+- **notes** (letters): `author_id`, `recipient_id`, `body`, `kind` ('day_complete'|'surprise'|'reply'), `reply_to` (the letter it answers), `photo_path` (its photo in the private storage bucket `letter-photos`, `<author id>/<uuid>.jpg`; readable by the author and by whoever can read the letter; `body` may be empty then), `deliver_at`, `notified_at` (set only after a device accepted the push), `notify_error` (last failed try), `opened_at`. Recipient can only update `opened_at` and only sees surprises once `deliver_at <= now()`.
 - **rewards**: `title`, `streak_required`, `notified_at`, `claimed_at`. Recipient can only update `claimed_at`.
 - **push_subscriptions**: one row per device (`endpoint` unique, `p256dh`, `auth`). `push_device_count(person)` (security definer) tells either of you how many devices a person has (count only).
 - **nudge_log**: `(user_id, kind, ref, sent_on)` unique. Server-only (RLS on, no policies). Prevents duplicate pushes.
@@ -261,6 +264,11 @@ Notebook as groups, Progress as a button (2026-11-23). To ship it, in this order
 - [x] Run `supabase/sql/08_notebook_groups.sql` (the last line must answer 0) BEFORE pushing (Eljon confirmed)
 - [x] Push to main (no Edge Function change)
 
+Undo after delete and photos in letters (2026-11-23). To ship it, in this order:
+- [x] Run `supabase/sql/09_letter_photos.sql` (the last line must answer 1; Eljon confirmed)
+- [x] Push to main (no Edge Function change)
+- [ ] Test on the iPhone: swipe a task away and Undo; send a letter with a photo from the camera roll
+
 Batch of 2026-11-22 (honest Nudges switch, delivery status, quote fix, cleanup, all screens restyled, edit task, move to tomorrow, reorder, focus timer, "she finished her day"). To ship it, in this order:
 - [ ] Run `supabase/sql/05_order_sharing_delivery.sql` in the SQL Editor
 - [ ] Redeploy the Edge Function (paste `supabase/functions/send-nudges/index.ts`, Deploy, check Verify JWT is still off)
@@ -274,7 +282,7 @@ Equal features (2026-11-22, after the batch above):
 
 Backlog (ask Eljon to prioritise; her feedback decides):
 - PIN lock for a group, encrypted on the device before it reaches Supabase (so passwords aren't readable in the database). Decide this before real passwords go in.
-- Someday list; undo after delete; plan further than 5 days (ideas of 2026-11-23)
+- Someday list; plan further than 5 days; return flight on a trip (ideas of 2026-11-23)
 - Nightly 1-tap mood check-in
 - Albanian/English language switch (Eljon builds multilingual sites: EN/SQ/DE)
 - Keyboard way to reorder tasks (drag is pointer-only today)

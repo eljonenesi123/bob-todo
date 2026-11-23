@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
 import { currentStreak } from '../lib/stats'
+import { letterWords } from '../lib/photo'
+import LetterPhoto from '../components/LetterPhoto'
 import LetterReply from '../components/LetterReply'
 import './Notes.css'
 
@@ -105,11 +107,11 @@ export default function Notes({ notes, allDone, switcher }) {
               {notes.opened.map((n) => (
                 <li key={n.id}>
                   <button type="button" className="pad-line opened-line" onClick={() => read(n)}
-                    aria-label={`Letter from ${fmt(n.opened_at)}: ${n.body}`}>
+                    aria-label={`Letter from ${fmt(n.opened_at)}: ${letterWords(n)}`}>
                     <span className="row-margin opened-date" aria-hidden="true">
                       <strong>{fmtDay(n.opened_at)}</strong>{fmtMonth(n.opened_at)}
                     </span>
-                    <span className="line-body"><span className="opened-body">{n.body}</span></span>
+                    <span className="line-body"><span className="opened-body">{letterWords(n)}</span></span>
                   </button>
                 </li>
               ))}
@@ -129,8 +131,9 @@ export default function Notes({ notes, allDone, switcher }) {
                 <p className="letter-from">From {notes.authorName(reading)}</p>
                 <button type="button" className="sheet-close" onClick={() => setReading(null)} autoFocus>Close</button>
               </div>
-              {notes.answers(reading) && <p className="letter-quote">You wrote: {notes.answers(reading).body}</p>}
-              <p className="letter-body">{reading.body}</p>
+              {notes.answers(reading) && <p className="letter-quote">You wrote: {letterWords(notes.answers(reading))}</p>}
+              {reading.body && <p className="letter-body">{reading.body}</p>}
+              {reading.photo_path && <LetterPhoto path={reading.photo_path} alt={`Photo from ${notes.authorName(reading)}`} />}
               <LetterReply key={reading.id} note={reading} notes={notes} />
             </motion.div>
           </motion.div>

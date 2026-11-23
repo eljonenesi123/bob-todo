@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
 import { currentStreak } from '../lib/stats'
+import LetterPhoto from './LetterPhoto'
 import LetterReply from './LetterReply'
 import '../screens/Notes.css' // envelope + letter styles
 import './DayComplete.css'
@@ -46,7 +47,8 @@ export default function DayComplete({ notes, total, onClose }) {
                   initial={reduce ? false : { opacity: 0, rotateX: -50 }} animate={{ opacity: 1, rotateX: 0 }}
                   transition={{ type: 'spring', stiffness: 160, damping: 18 }}>
                   <p className="letter-from">From {notes.authorName(note)}</p>
-                  <p className="letter-body">{note.body}</p>
+                  {note.body && <p className="letter-body">{note.body}</p>}
+                  {note.photo_path && <LetterPhoto path={note.photo_path} alt={`Photo from ${notes.authorName(note)}`} />}
                   <LetterReply note={note} notes={notes} />
                 </motion.div>
               )}

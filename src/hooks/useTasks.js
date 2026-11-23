@@ -149,11 +149,20 @@ export function useTasks() {
     if (results.some((r) => r.error)) load()
   }, [tasks, load])
 
+  // Deleting hides the task (archived), so it can come back. True when it worked.
   const removeTask = useCallback(async (task) => {
     setTasks((ts) => ts.filter((t) => t.id !== task.id))
     const { error } = await supabase.from('tasks').update({ archived: true }).eq('id', task.id)
     if (error) load()
+    return !error
   }, [load])
+
+  const restoreTask = useCallback(async (task) => {
+    const { data, error } = await supabase.from('tasks').update({ archived: false }).eq('id', task.id).select().single()
+    if (error) return false
+    setTasks((ts) => (ts.some((t) => t.id === data.id) ? ts : [...ts, data].sort(byPosition)))
+    return true
+  }, [])
 
   const addStep = useCallback(async (task, title) => {
     const clean = title.trim()
@@ -185,10 +194,19 @@ export function useTasks() {
     setSubtasks((ss) => ss.filter((s) => s.id !== step.id))
     const { error } = await supabase.from('subtasks').delete().eq('id', step.id)
     if (error) load()
+    return !error
   }, [load])
+
+  // The same step again, in its old place
+  const restoreStep = useCallback(async ({ id, task_id, title, done_at, position }) => {
+    const { data, error } = await supabase.from('subtasks').insert({ id, task_id, title, done_at, position }).select().single()
+    if (error) return false
+    setSubtasks((ss) => (ss.some((s) => s.id === data.id) ? ss : [...ss, data].sort(byPosition)))
+    return true
+  }, [])
 
   return {
     loading, tasks, completions, today, todayTasks, planFor,
-    toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, addStep, toggleStep, removeStep,
+    toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, restoreTask, addStep, toggleStep, removeStep, restoreStep,
   }
 }

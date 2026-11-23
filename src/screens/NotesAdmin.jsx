@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { sendLetter, deletePhoto, letterWords } from '../lib/photo'
+import PhotoPicker from '../components/PhotoPicker'
 import './Notes.css'
 
 const fmt = (iso) => new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
@@ -40,6 +42,8 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
   const [devices, setDevices] = useState(null)
   const [recipient, setRecipient] = useState('')
   const [body, setBody] = useState('')
+  const [photo, setPhoto] = useState(null)
+  const [sending, setSending] = useState(false)
   const [kind, setKind] = useState('day_complete')
   const [when, setWhen] = useState('')
   const [rewardTitle, setRewardTitle] = useState('')
@@ -70,12 +74,19 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
 
   async function sendNote(e) {
     e.preventDefault()
-    if (!body.trim() || !to) return
+    if ((!body.trim() && !photo) || !to || sending) return
     const row = { recipient_id: to, body: body.trim(), kind }
     if (kind === 'surprise') row.deliver_at = when ? new Date(when).toISOString() : new Date().toISOString()
-    const { error } = await supabase.from('notes').insert(row)
-    if (error) return setMsg('The letter wasn’t saved. Check your connection and try again.')
-    setBody(''); setWhen('')
+    setSending(true)
+    setMsg('')
+    try {
+      await sendLetter(userId, row, photo?.blob ?? null)
+    } catch {
+      setSending(false)
+      return setMsg('The letter wasn’t saved. Check your connection and try again.')
+    }
+    setSending(false)
+    setBody(''); setWhen(''); setPhoto(null)
     setMsg(kind === 'surprise' ? 'Saved. Bob sends it at that time.' : `Saved. ${who === 'them' ? 'It' : who} opens after a finished day.`)
     reload()
   }
@@ -90,8 +101,9 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
     reload()
   }
 
-  async function remove(table, id) {
-    await supabase.from(table).delete().eq('id', id)
+  async function remove(table, row) {
+    const { error } = await supabase.from(table).delete().eq('id', row.id)
+    if (!error) await deletePhoto(row.photo_path)
     reload()
   }
 
@@ -133,13 +145,14 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
             </div>
             <textarea className="letter-input" aria-label="Your message" value={body} onChange={(e) => setBody(e.target.value)}
               maxLength={1000} rows={4} placeholder="Proud of you today…" />
+            <PhotoPicker photo={photo} onChange={setPhoto} disabled={sending} />
             {kind === 'surprise' && (
               <label className="admin-field">
                 <span className="field-label">Arrives at (leave empty to send now)</span>
                 <input type="datetime-local" className="line-input" value={when} onChange={(e) => setWhen(e.target.value)} />
               </label>
             )}
-            <button className="btn btn-ink" disabled={!body.trim() || !to}>Save letter</button>
+            <button className="btn btn-ink" disabled={(!body.trim() && !photo) || !to || sending}>{sending ? 'Saving…' : 'Save letter'}</button>
             {msg && <p className="field-hint" role="status">{msg}</p>}
           </div>
         </form>
@@ -168,12 +181,12 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
                   <li key={n.id} className="pad-line">
                     <span className="row-margin" aria-hidden="true"><span className={`status-dot ${s.tone}`} /></span>
                     <span className="line-body">
-                      <span className="admin-note-body">{n.body}</span>
+                      <span className="admin-note-body">{letterWords(n)}</span>
                       <span className={`line-sub status-${s.tone}`}>{n.kind === 'reply' ? `Your reply. ${s.label}` : s.label}</span>
                     </span>
                     {!n.opened_at && (
                       <span className="line-end">
-                        <button type="button" className="del-btn" aria-label="Delete letter" onClick={() => remove('notes', n.id)}><TrashIcon /></button>
+                        <button type="button" className="del-btn" aria-label="Delete letter" onClick={() => remove('notes', n)}><TrashIcon /></button>
                       </span>
                     )}
                   </li>
@@ -196,7 +209,7 @@ export default function NotesAdmin({ userId, partner, partnerName, switcher }) {
                   </span>
                   {!r.claimed_at && (
                     <span className="line-end">
-                      <button type="button" className="del-btn" aria-label="Delete reward" onClick={() => remove('rewards', r.id)}><TrashIcon /></button>
+                      <button type="button" className="del-btn" aria-label="Delete reward" onClick={() => remove('rewards', r)}><TrashIcon /></button>
                     </span>
                   )}
                 </li>
