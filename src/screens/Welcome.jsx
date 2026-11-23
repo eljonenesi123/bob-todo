@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { readPending, savePending, clearPending, sendError, verifyError, RESEND_S } from '../lib/signin'
 import { useVisibleHeight } from '../hooks/useVisibleHeight'
 import BackButton from '../components/BackButton'
-import CodeInput, { CODE_LENGTH } from '../components/CodeInput'
+import CodeInput, { CODE_LENGTH, CODE_MIN } from '../components/CodeInput'
 import './Auth.css'
 
 // The Tally mark from the app icon: four pen strokes, the fifth in highlighter
@@ -73,7 +73,7 @@ export default function Welcome() {
   }
 
   async function verify(token) {
-    if (busy || token.length < CODE_LENGTH) return
+    if (busy || token.length < CODE_MIN) return
     setBusy(true)
     setError('')
     setInfo('')
@@ -86,8 +86,8 @@ export default function Welcome() {
   function typeCode(next) {
     setCode(next)
     setError('')
-    // All six are in: no need to tap the button as well
-    if (next.length === CODE_LENGTH && code.length < CODE_LENGTH) verify(next)
+    // All digits are in: no need to tap the button as well
+    if (next.length === CODE_LENGTH && next !== code) verify(next)
   }
 
   function otherEmail() {
@@ -146,11 +146,11 @@ export default function Welcome() {
             <p className="auth-sub">We sent a code to <strong>{email}</strong></p>
           </header>
           <motion.form className="auth-sheet" onSubmit={(e) => { e.preventDefault(); verify(code) }} {...rise}>
-            <label className="auth-label" htmlFor="code">The 6-digit code</label>
+            <label className="auth-label" htmlFor="code">The code from the email</label>
             <CodeInput id="code" value={code} onChange={typeCode} disabled={busy} invalid={!!error} describedBy={error ? 'code-error' : undefined} />
             {error && <p id="code-error" className="error on-paper" role="alert">{error}</p>}
             {info && <p className="auth-info" role="status">{info}</p>}
-            <button className="btn btn-ink" disabled={busy || code.length < CODE_LENGTH}>{busy ? 'One moment…' : 'Sign in'}</button>
+            <button className="btn btn-ink" disabled={busy || code.length < CODE_MIN}>{busy ? 'One moment…' : 'Sign in'}</button>
             <button type="button" className="auth-again" disabled={busy || wait > 0} onClick={sendAgain}>
               {wait > 0 ? `Send a new code in ${wait} s` : 'Send a new code'}
             </button>

@@ -48,7 +48,7 @@ Accounts (since 2026-11-22 both have **the same features**):
 | Frontend | React 19 + Vite 8, plain CSS files per screen (no Tailwind, no UI kit) |
 | Animation | `framer-motion` |
 | Backend | Supabase: Postgres + Auth + Realtime + Edge Functions + pg_cron + pg_net |
-| Auth | Email **6-digit OTP code** (`signInWithOtp` + `verifyOtp({ type: 'email' })`), no passwords |
+| Auth | Email **8-digit OTP code** (`signInWithOtp` + `verifyOtp({ type: 'email' })`), no passwords |
 | Email sending | Custom SMTP via **Gmail** (`studioscriptline@gmail.com`, app password) |
 | PWA | `vite-plugin-pwa` with `strategies: 'injectManifest'`, custom `src/sw.js` (Workbox precache + push handlers) |
 | Push | Web Push (VAPID). Edge Function `send-nudges` uses `npm:web-push@3.6.7` |
@@ -110,7 +110,7 @@ src/lib/push.js            enablePush / disablePush / syncPush / deviceStatus. "
                            this account, not just allowed; a subscription owned by another account is replaced
 src/lib/focus.js           Focus timer session in localStorage (survives closing the app)
 
-src/screens/Welcome.jsx    Sign-in: opening page → email → 6-digit code (six boxes, signs in by itself at the sixth digit, "Send a new code" after 60 s)
+src/screens/Welcome.jsx    Sign-in: opening page → email → 8-digit code (eight boxes, signs in by itself at the eighth digit; 6 or 7 digits work with the button, "Send a new code" after 60 s)
 src/screens/Setup.jsx      First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
 src/screens/Auth.css       Look of both: dark top, then a sheet of paper with big round corners at the bottom of the screen
 src/hooks/useVisibleHeight.js  Keeps that sheet above the iPhone keyboard
@@ -138,7 +138,7 @@ src/components/LetterReply.jsx  Reply box under an open letter (Letters and Day 
 src/components/NextUp.*         One line on Today: nearest countdown, or the check-in to do
 src/components/CountdownSheet.jsx Paper sheet to add/edit a countdown or trip
 src/components/GroupSheet.jsx, NoteSheet.jsx  Add/edit a group (name, share) or a note (name, text; autocorrect off for passwords)
-src/components/CodeInput.jsx   Six boxes over one real input (typing, pasting and the phone's code suggestion work)
+src/components/CodeInput.jsx   One box per digit (CODE_LENGTH = 8) over one real input (typing, pasting and the phone's code suggestion work)
 src/components/PaperSheet.jsx, CheckRow.jsx, BackButton.jsx  Shared pieces for sheets and pages that open from a button
 src/components/BottomNav.jsx    4 tabs and the round + (new task), yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
 
@@ -183,7 +183,8 @@ All tables have **RLS on**. Users only see their own rows unless stated.
 
 ## 6. Auth & email gotchas (learned the hard way)
 
-- **Use the 6-digit code, never magic links.** On iPhone a Home-Screen app has separate storage from Safari, so links would sign her into Safari, not Bob.
+- The code is **8 digits** (Supabase's OTP length; until 2026-11-23 this guide wrongly said 6 and the new boxes locked everyone out).
+- **Use the code, never magic links.** On iPhone a Home-Screen app has separate storage from Safari, so links would sign her into Safari, not Bob.
 - Email templates **"Magic link or OTP"** and **"Confirm signup"** both use `{{ .Token }}` (new users get "Confirm signup"!). Editing templates requires custom SMTP.
 - Auth → URL Configuration: Site URL `https://eljonenesi123.github.io/bob-todo/`, redirect URLs include that `/**` and `http://localhost:5173/**`.
 - Gmail SMTP needs 2-Step Verification + an **app password** (16 chars).

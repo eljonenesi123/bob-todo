@@ -1,8 +1,10 @@
 import { useState } from 'react'
 
-export const CODE_LENGTH = 6
+// What Supabase sends (Authentication → Email → OTP length). Shorter codes work too, with the button.
+export const CODE_LENGTH = 8
+export const CODE_MIN = 6
 
-// Six boxes on top of one real field, so typing, pasting and the phone's own code suggestion all work
+// One box per digit on top of one real field, so typing, pasting and the phone's own code suggestion all work
 export default function CodeInput({ id, value, onChange, disabled, invalid, describedBy }) {
   const [focused, setFocused] = useState(false)
   const at = Math.min(value.length, CODE_LENGTH - 1)
