@@ -8,10 +8,10 @@
 .dc-head { display: flex; flex-direction: column; gap: 10px; }
 .dc-count { margin: 0; font-size: 22px; font-weight: 600; color: var(--muted); }
 .dc-count span {
-  font-size: 120px; line-height: .8; font-weight: 800; letter-spacing: -0.06em; color: var(--silver);
-  font-variation-settings: 'opsz' 96, 'wdth' 75; margin-right: 6px;
+  font-size: 108px; line-height: .8; font-weight: 600; letter-spacing: -0.04em; color: var(--silver);
+  margin-right: 6px;
 }
-.dc-head h1 { margin: 10px 0 0; font-size: 34px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.dc-head h1 { margin: 10px 0 0; font-size: 34px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
 .dc-hl { color: var(--ink); animation-delay: .35s; }
 .dc-streak { margin: 0; font-size: 17px; color: var(--muted); }
 

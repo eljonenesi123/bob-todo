@@ -70,7 +70,7 @@ Accounts (since 2026-11-22 both have **the same features**):
 ## 4. File map
 
 ```
-index.html                 Fonts (Bricolage Grotesque + Newsreader), iOS PWA meta tags
+index.html                 Fonts (Outfit + Newsreader), iOS PWA meta tags
 vite.config.js             base '/bob-todo/', VitePWA manifest (name Bob, theme #2B2D31, icons)
 .github/workflows/deploy.yml  Build with secrets → deploy to Pages on push to main
 public/icons/*, apple-touch-icon.png, favicon.svg   Sun-on-yellow app icons
@@ -81,6 +81,7 @@ src/Shell.jsx              Tabs (today/notebook/notes/nudges; progress opens fro
                            Day-complete overlay, syncPush(); passes partner + names down
 src/sw.js                  Service worker: precache, offline navigation, 'push' + 'notificationclick', app badge
 src/index.css              Global tokens (colors, fonts), .screen/.btn/.field basics
+src/Cards.css              The card look of every screen (loads last, see §8)
 src/Shell.css              Bottom nav, shared .page-title/.panel/.tab-screen, paper-page kit (.paper-page/.desk-head/.pad-line/.ink-btn)
 
 src/context/tasks.js           TasksContext + useTaskData()
@@ -88,6 +89,7 @@ src/context/TasksProvider.jsx  Wraps useTasks(); sets app icon badge = tasks lef
 src/hooks/useTasks.js      Fetch tasks/completions/subtasks, realtime sync, todayTasks, planFor(iso),
                            toggle, addTask (with steps + due_on), updateTask, moveToTomorrow, reorder (positions),
                            removeTask (archive) / restoreTask, addStep, toggleStep, removeStep / restoreStep (the Undo bar)
+src/hooks/usePlanDays.js   Today + the next 5 days with task counts (day strip, New task sheet)
 src/hooks/useProfile.js    Own profile, update(); auto-saves browser timezone
 src/hooks/useNotes.js      Letters (received and written) and rewards; openNote, claimReward, sendReply, repliesTo, answers, author names
 src/hooks/useNotebook.js   Groups and the notes inside, realtime; saveGroup, removeGroup, saveNote (notices edits from another device), removeNote
@@ -119,8 +121,9 @@ src/screens/NotesAdmin.jsx "Write to <name>": notes (after a finished day / surp
 src/screens/Nudges.*       Notifications switch (checks the database) + errors, snooze, "Tell Eljon when I finish my day",
                            nudge style, times, name, sign out (no explainer texts: kept uncluttered on purpose)
 
-src/components/TaskRow.jsx     Ruled row: margin checkbox, pen strike, Big three highlighter, steps panel (+ Edit / Focus buttons),
-                               swipe-left delete, hold (or right-click) to edit, drag the dots to reorder
+src/components/TaskRow.jsx     Task card: round tick, pen strike, steps panel, three dots, swipe-left delete, hold (or right-click) to edit
+                               (a hold cancels the swipe), drag the dots to reorder
+src/components/TaskMenu.jsx    Behind the three dots: Edit, Focus on it, steps, Move to tomorrow, Move up/down, Delete
 src/components/AddTaskSheet.jsx Paper bottom sheet for new AND edit (editing prop): title, When, Big three, Repeat, Steps (new only),
                                Remind at, Category; edit adds Move to tomorrow + Delete
 src/components/FocusTimer.*     Full-screen focus timer (10/25/45 min, pause, five more, mark done)
@@ -133,7 +136,7 @@ src/components/NextUp.*         One line on Today: nearest countdown, or the che
 src/components/CountdownSheet.jsx Paper sheet to add/edit a countdown or trip
 src/components/GroupSheet.jsx, NoteSheet.jsx  Add/edit a group (name, share) or a note (name, text; autocorrect off for passwords)
 src/components/PaperSheet.jsx, CheckRow.jsx, BackButton.jsx  Shared pieces for sheets and pages that open from a button
-src/components/BottomNav.jsx    4 tabs, yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
+src/components/BottomNav.jsx    4 tabs and the round + (new task), yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
 
 supabase/functions/send-nudges/index.ts  The nudge engine (see §7)
 supabase/sql/01..09_*.sql                Schema history (what still has to be run: see §9)
@@ -230,15 +233,15 @@ Troubleshooting map: `her_devices = 0` → her phone isn't connected: Bob → Nu
 
 ## 8. Design system (important: "must not look AI-generated")
 
-**Concept: graphite desk, silver paper, yellow highlighter.** A planner/legal pad, not a SaaS dashboard.
+**Concept: graphite desk, rounded silver cards, yellow for what matters** (Eljon's choice "B", 2026-11-23; before that it was one legal pad). A calm planner, not a SaaS dashboard.
 
 - Colors (user's palette): graphite `#2B2D31` (desk/background, dominant), silver `#D9DADC` (paper and text on desk, dominant), yellow `#FFC93C` (**only** for things needing attention: highlighter on Big three, the add pen, tally marks, nav marker, switches). Ink on paper = `#2B2D31`, pencil (secondary text on paper) = `#55585E`, rules = `#C3C5C9`, margin line = `#B4B6BB`. Tokens live in `src/index.css`.
-- Type: **Bricolage Grotesque** for interface (use width/opsz axes for the big date numeral), **Newsreader italic** only for quotes and Eljon's notes (feels handwritten).
-- Today page: huge date numeral masthead, tally bar, day strip whose selected day becomes a paper tab joined to the pad, ruled legal-pad list with a margin line; checkboxes sit in the margin and draw their tick; done = pen strike-through; Big three = yellow highlighter swipe (the one page-load animation).
-- **Avoid** (generic AI tells): ALL-CAPS eyebrow labels, middle-dot meta strings ("A · B"), emoji in the UI (fine in push titles), identical rounded cards everywhere, fade-and-slide-up on every section, gradient washes, `→` on buttons, generic fonts (Inter, Plus Jakarta), lorem/filler copy.
+- Type: **Outfit** for interface (Eljon's choice, 2026-11-23; weights 400 to 700, big numerals 600; it has no width axis), **Newsreader italic** only for quotes and Eljon's notes (feels handwritten).
+- Today page: huge date numeral masthead, tally bar, day strip whose selected day is a rounded silver block, then every task is its own card (`.row-item`) with a round tick, three dots (TaskMenu) and drag dots. Big three = yellow card, done = dark card with a pen strike. The round yellow + in the bottom menu adds a task from any tab (on Today: for the selected day).
+- **Avoid** (generic AI tells): ALL-CAPS eyebrow labels, middle-dot meta strings ("A · B"), emoji in the UI (fine in push titles), fade-and-slide-up on every section, gradient washes, `→` on buttons, generic fonts (Inter, Plus Jakarta), lorem/filler copy.
 - Copy: plain, warm, sentence case, active verbs ("Add to today", "Write a task"). Errors say what happened and how to fix it.
 - Accessibility floor: real buttons/inputs, `aria` on icon buttons, 44px touch targets, focus ring (yellow), `prefers-reduced-motion` respected, text contrast ≥ 4.5:1.
-- Every screen uses the paper page pattern (Today, Progress, Notes, Notes for her, Nudges, Welcome, Setup, Day complete, Focus): a short heading on the desk, then a `.pad` of ruled `.pad-line`s with a 52px margin column. The pad kit (.pad, .pad-h, .ruled, .row-margin, .box, .hl, .pill, .line-input, .switch, .btn-ink) lives in `Today.css`; the page-level pieces live in `Shell.css`.
+- Every screen uses the card pattern: a short heading on the desk, then sections whose `.pad-h` lies on the desk and whose content is cards (`.pad-line` = one row card, `.pad-block` = a form card). `src/Cards.css` holds all of it and loads last (from Shell.jsx), over the older pad styles in `Today.css` and `Shell.css`. A card in another colour only changes the tokens `--paper`, `--ink`, `--pencil`, `--margin-line` (see `.row-item.is-big` / `.is-done`). Text on the desk needs light colours, text on a card dark ones.
 - Generic paper helpers (.pad-block, .field-label, .field-hint, .ink-btn, .pad-line) live in `Shell.css`; envelope and letter styles live in `Notes.css` and are reused by Day complete.
 
 ---
@@ -264,6 +267,10 @@ Notebook as groups, Progress as a button (2026-11-23). To ship it, in this order
 - [x] Run `supabase/sql/08_notebook_groups.sql` (the last line must answer 0) BEFORE pushing (Eljon confirmed)
 - [x] Push to main (no Edge Function change)
 
+Outfit font and task cards (2026-11-23):
+- [x] Push to main (no SQL, no Edge Function change)
+- [ ] Test on the iPhone: + from every tab, three dots, quick swipe deletes, hold edits, drag dots
+
 Undo after delete and photos in letters (2026-11-23). To ship it, in this order:
 - [x] Run `supabase/sql/09_letter_photos.sql` (the last line must answer 1; Eljon confirmed)
 - [x] Push to main (no Edge Function change)
@@ -285,7 +292,7 @@ Backlog (ask Eljon to prioritise; her feedback decides):
 - Someday list; plan further than 5 days; return flight on a trip (ideas of 2026-11-23)
 - Nightly 1-tap mood check-in
 - Albanian/English language switch (Eljon builds multilingual sites: EN/SQ/DE)
-- Keyboard way to reorder tasks (drag is pointer-only today)
+- (done 2026-11-23: reorder without dragging, Move up/down behind the three dots)
 - Focus timer can't notify when it ends while Bob is closed (iOS web apps can't schedule local notifications)
 
 ## 10. Definition of done for any change

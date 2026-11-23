@@ -25,7 +25,7 @@
 }
 
 /* Shared bits used by several screens */
-.page-title { margin: 0; font-size: 34px; font-weight: 800; letter-spacing: -0.03em; font-variation-settings: 'wdth' 85; }
+.page-title { margin: 0; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; }
 .page-sub { margin: 6px 0 0; font-size: 16px; color: var(--muted); }
 .panel { background: var(--gray-2); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .panel h2 { margin: 0; font-size: 17px; font-weight: 700; }

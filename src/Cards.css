@@ -1,0 +1,126 @@
+/* ---------- Cards: everything on the desk is a rounded paper card ----------
+   Loaded last (Shell.jsx). Cards read the paper/ink tokens, so a card in another
+   colour only has to change those tokens (see .row-item.is-big and .is-done). */
+:root { --card: 18px; }
+
+/* The old legal pad is now just the space the cards lie on */
+.pad { background: none; color: var(--silver); border-radius: 0; box-shadow: none; }
+.paper-page .pad, .pad { padding-top: 4px; }
+.pad::before { content: none; }
+.pad-h { margin: 0 22px 10px; color: var(--muted); font-size: 15px; font-weight: 600; }
+.pad-section + .pad-section { margin-top: 28px; }
+.pad-note { margin: 10px 22px 0; color: var(--muted); }
+.pad .error { color: #FFB4AB; }
+.pad-block .error, .sheet .error { color: #8E2F26; }
+.ruled, .notes-list { border: none; padding: 0 16px; display: flex; flex-direction: column; gap: 10px; }
+
+.pad-line, .pad-block, .starter, .setup-step {
+  background: var(--paper); color: var(--ink); border: none; border-radius: var(--card);
+}
+.pad-line { min-height: 62px; overflow: hidden; }
+.pad-block { margin: 0 16px; padding: 18px; }
+.starter { min-height: 58px; padding: 0; }
+.share-line { margin-top: 10px; }
+button.pad-line:active, .starter:active, .note-open:active, .count-open:active { background: var(--rule); }
+
+/* Buttons that lie on the desk itself, not on a card */
+.blank .pad-block, .signout-row, .setup-actions { background: none; padding: 0; }
+.blank .pad-block { margin: 0 22px; }
+.blank .ink-btn, .signout-row .ink-btn, .setup-actions .ink-btn { border-color: var(--gray-3); color: var(--silver); }
+.setup-actions .btn-ink { background: var(--silver); color: var(--ink); }
+
+/* Start something new */
+.write-row {
+  width: calc(100% - 32px); min-height: 60px; margin: 0 16px 10px; border: 1.5px dashed var(--muted-dark); border-radius: var(--card);
+  color: var(--silver);
+}
+.notebook .write-row { min-height: 60px; }
+.write-row:active, .notebook .write-row:active { background: var(--gray-2); }
+.pen { border-radius: 50%; }
+
+.blank-title { margin: 0 22px 4px; font-weight: 600; }
+.blank-sub { margin: 0 22px 16px; color: var(--muted); }
+.notebook .blank { padding-top: 12px; }
+.pad-loading, .notebook .pad-loading { margin: 0 16px; background: var(--gray-2); border-radius: var(--card); }
+
+/* ---------- Today ---------- */
+.masthead { min-height: 88px; }
+.daystrip { padding: 18px 12px 20px; }
+.day { border-radius: var(--card); padding: 12px 0; }
+.day:active { background: var(--gray-2); }
+.day.is-selected:active { background: var(--paper); }
+.quote { margin: 0 22px 24px; color: var(--silver); }
+
+.row-item { border: none; border-radius: var(--card); overflow: hidden; isolation: isolate; background: var(--paper); color: var(--ink); }
+.row { min-height: 66px; background: var(--paper); }
+/* Big three: a yellow card */
+.row-item.is-big { --paper: #FFC93C; --pencil: #3A3C41; --margin-line: #8A6F2A; --rule: #E5B232; }
+/* Done: the card steps back into the desk */
+.row-item.is-done { --paper: #34363B; --ink: #A3A5AA; --pencil: #A3A5AA; --margin-line: #6B6E75; --rule: #4A4C52; }
+.row-main { align-self: stretch; justify-content: center; }
+.row-title { font-weight: 500; overflow-wrap: anywhere; }
+.row-meta { flex-wrap: wrap; gap: 0 10px; }
+.row-steps { display: inline-flex; align-items: center; gap: 3px; }
+.row-steps svg { transition: transform .2s ease; }
+.row-steps.is-open svg { transform: rotate(180deg); }
+.row-more {
+  width: 44px; align-self: stretch; min-height: 44px; flex-shrink: 0; padding: 0; border: none; background: none; color: var(--pencil);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+}
+.row-more svg { fill: currentColor; }
+.row-more:active { color: var(--ink); }
+.row-grip { margin-right: 8px; color: color-mix(in srgb, var(--pencil) 60%, transparent); }
+.row-main { padding-left: 5px; }
+.box { border-radius: 50%; }
+.box-sm { border-radius: 50%; }
+/* The tick is easier to hit than it looks */
+.row .box { position: relative; }
+.row .box::before { content: ''; position: absolute; inset: -12px; }
+/* Solid, or the red delete layer would show through */
+.steps { background: color-mix(in srgb, var(--paper) 94%, #2B2D31); }
+.step-add button { border-color: var(--ink); color: var(--ink); }
+
+/* What you can do with a task */
+.task-menu { display: flex; flex-direction: column; }
+.task-menu button {
+  min-height: 54px; padding: 0 2px; border: none; border-bottom: 1px solid var(--rule); background: none; color: var(--ink);
+  font-size: 17px; font-weight: 500; text-align: left; cursor: pointer;
+}
+.task-menu button:last-child { border-bottom: none; }
+.task-menu button:active { background: var(--rule); }
+.task-menu .danger { color: #8E2F26; }
+.sheet-head { gap: 16px; }
+.sheet-head h2 { min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.sheet { border-radius: 24px 24px 0 0; }
+
+/* ---------- Bottom menu with the add button ---------- */
+.bottom-nav-inner { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 76px minmax(0, 1fr) minmax(0, 1fr); }
+.nav-add {
+  margin: -20px auto 0; padding: 0; border: 5px solid var(--gray-deep); border-radius: 50%; box-sizing: content-box;
+  width: 54px; height: 54px; background: var(--yellow); color: var(--ink); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: transform .12s ease;
+}
+.nav-add:active { transform: scale(.94); }
+.undo-bar { bottom: calc(108px + env(safe-area-inset-bottom)); border-radius: var(--card); }
+
+/* ---------- The other pages ---------- */
+.progress .pad-section {
+  margin: 0 16px; padding: 18px; background: var(--paper); color: var(--ink); border-radius: var(--card);
+}
+.progress .pad-section + .pad-section { margin-top: 12px; }
+.progress .pad-h { margin: 0; color: var(--pencil); }
+.progress .pad-note { margin: 12px 0 0; color: var(--pencil); }
+.progress .ruled { padding: 0; }
+.progress .pad-line { min-height: 48px; }
+.week, .cal { margin: 12px 0 0; }
+.reward-track { margin: 12px 0 0; }
+
+.envelope, .letter, .dc-letter { border-radius: var(--card); }
+.focus-sheet { border-radius: 24px 24px 0 0; }
+.setup-step { padding: 16px 0; }
+.welcome-fields { padding-top: 20px; }
+
+/* Nothing in the margin: no need to keep room for it */
+.note-open .row-margin:empty, .past .row-margin:empty { width: 6px; }
+.pad .signout-row { margin: 28px 22px 0; }
+.pad .setup-actions { margin: 28px 22px 0; }

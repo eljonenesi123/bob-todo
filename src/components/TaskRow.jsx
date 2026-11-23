@@ -17,8 +17,7 @@ function Box({ checked, small, disabled, onClick, label }) {
 
 const HOLD_MS = 500
 
-export default function TaskRow({ task, big, today, future, onToggle, onRemove, onAddStep, onToggleStep, onRemoveStep, onEdit, onFocus, onDrop }) {
-  const [open, setOpen] = useState(false)
+export default function TaskRow({ task, big, today, future, open, onOpen, onToggle, onRemove, onAddStep, onToggleStep, onRemoveStep, onEdit, onMenu, onDrop }) {
   const [draft, setDraft] = useState('')
   const controls = useDragControls()
   // Hold a line to edit it (right-click on a computer)
@@ -42,7 +41,7 @@ export default function TaskRow({ task, big, today, future, onToggle, onRemove, 
 
   function mainClick() {
     if (hold.current.fired) { hold.current.fired = false; return } // the hold already opened the editor
-    if (steps.length || future) setOpen((o) => !o)
+    if (steps.length || future) onOpen(open ? null : task.id)
     else onToggle(task)
   }
   const steps = task.steps ?? []
@@ -63,7 +62,7 @@ export default function TaskRow({ task, big, today, future, onToggle, onRemove, 
       dragListener={false}
       dragControls={controls}
       onDragEnd={onDrop}
-      className="row-item"
+      className={`row-item ${big ? 'is-big' : ''} ${task.done ? 'is-done' : ''}`}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, x: -60, transition: { duration: 0.18 } }}
@@ -77,7 +76,12 @@ export default function TaskRow({ task, big, today, future, onToggle, onRemove, 
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={{ left: 0.5, right: 0 }}
         dragDirectionLock
-        onDragEnd={(_, info) => { if (info.offset.x < -110) onRemove(task) }}
+        onDragStart={holdEnd}
+        onDragEnd={(_, info) => {
+          // After a hold the editor is open: moving the finger must not delete the task as well
+          if (hold.current.fired) hold.current.fired = false
+          else if (info.offset.x < -110) onRemove(task)
+        }}
       >
         <span className="row-margin">
           <Box checked={task.done} disabled={future} label={`Done: ${task.title}`} onClick={() => onToggle(task)} />
@@ -95,26 +99,24 @@ export default function TaskRow({ task, big, today, future, onToggle, onRemove, 
           onContextMenu={(e) => { e.preventDefault(); holdEnd(); onEdit(task) }}
         >
           <span className="row-title">
-            <span className={big ? 'hl' : undefined}>{task.title}</span>
+            {task.title}
             <span className="strike" aria-hidden="true" />
           </span>
           <span className="row-meta">
             {carried && <span className="carried">from {shortDay(task.due_on)}</span>}
-            {steps.length > 0 && <span>{stepsDone} of {steps.length} steps</span>}
+            {steps.length > 0 && (
+              <span className={`row-steps ${open ? 'is-open' : ''}`}>
+                {stepsDone} of {steps.length} steps
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+              </span>
+            )}
             {task.remind_at && <span>{task.remind_at.slice(0, 5)}</span>}
             {!carried && !steps.length && !task.remind_at && <span>{categoryLabel(task.category)}</span>}
           </span>
         </button>
-        {steps.length > 0 && (
-          <button type="button" className={`row-chevron ${open ? 'is-open' : ''}`} aria-label={open ? 'Hide steps' : 'Show steps'} onClick={() => setOpen((o) => !o)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-          </button>
-        )}
-        {!steps.length && (
-          <button type="button" className="row-chevron add-steps" aria-expanded={open} aria-label={`More for ${task.title}: steps, edit, focus`} onClick={() => setOpen((o) => !o)}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><path d="M4 7h10M4 12h10M4 17h6M18 14v6M15 17h6" /></svg>
-          </button>
-        )}
+        <button type="button" className="row-more" aria-label={`More for ${task.title}`} onClick={() => onMenu(task)}>
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" /></svg>
+        </button>
         <span className="row-grip" aria-hidden="true" onPointerDown={(e) => { holdEnd(); controls.start(e) }}>
           <svg width="14" height="18" viewBox="0 0 14 18"><circle cx="4" cy="4" r="1.6" /><circle cx="10" cy="4" r="1.6" /><circle cx="4" cy="9" r="1.6" /><circle cx="10" cy="9" r="1.6" /><circle cx="4" cy="14" r="1.6" /><circle cx="10" cy="14" r="1.6" /></svg>
         </span>
@@ -140,10 +142,6 @@ export default function TaskRow({ task, big, today, future, onToggle, onRemove, 
                 value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={200} />
               <button type="submit" disabled={!draft.trim()}>Add</button>
             </form>
-            <div className="row-actions">
-              <button type="button" onClick={() => onEdit(task)}>Edit task</button>
-              {!future && !task.done && <button type="button" onClick={() => onFocus(task)}>Focus on it</button>}
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

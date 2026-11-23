@@ -18,7 +18,7 @@
 .week-col.full .week-bar { background: var(--ink); }
 .week-col.future .week-track { border-bottom-style: dashed; border-bottom-color: var(--margin-line); }
 .week-label { font-size: 13px; font-weight: 600; color: var(--pencil); }
-.week-label.hl-static { color: var(--ink); font-weight: 800; }
+.week-label.hl-static { color: var(--ink); font-weight: 700; }
 
 /* Month: a little calendar, marked up in pen */
 .cal {
@@ -38,7 +38,7 @@
   content: ''; position: absolute; inset: 9%; border: 2px solid var(--ink); border-radius: 50%;
   transform: rotate(-8deg); border-top-left-radius: 46% 54%;
 }
-.cal-day.full { font-weight: 800; }
+.cal-day.full { font-weight: 700; }
 /* some done: a dot under the number */
 .cal-day.partial::after {
   content: ''; position: absolute; bottom: 10%; left: 50%; width: 5px; height: 5px; margin-left: -2.5px;

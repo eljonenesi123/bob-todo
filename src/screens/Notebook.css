@@ -33,7 +33,7 @@
   display: flex; align-items: center; text-align: left; cursor: pointer;
 }
 .count-days { flex-direction: column; align-self: stretch; font-size: 12px; font-weight: 600; line-height: 1.1; color: var(--pencil); }
-.count-days strong { font-size: 24px; font-weight: 800; line-height: 1; color: var(--ink); font-variation-settings: 'wdth' 75; }
+.count-days strong { font-size: 24px; font-weight: 700; line-height: 1; color: var(--ink); }
 .count-days .count-today { font-size: 16px; }
 .check-due { color: var(--ink); font-weight: 700; }
 .past { margin-top: 26px; }

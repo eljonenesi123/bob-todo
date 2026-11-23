@@ -1,17 +1,17 @@
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { motion, AnimatePresence, Reorder } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
-import { addDays, greeting } from '../lib/dates'
+import { greeting } from '../lib/dates'
 import { quoteOfTheDay } from '../lib/quotes'
 import DayStrip from '../components/DayStrip'
 import TaskRow from '../components/TaskRow'
 import AddTaskSheet from '../components/AddTaskSheet'
+import TaskMenu from '../components/TaskMenu'
 import FocusTimer from '../components/FocusTimer'
 import NextUp from '../components/NextUp'
 import { readFocus } from '../lib/focus'
 import './Today.css'
 
-const PLAN_AHEAD = 5
 const STARTERS = [
   { title: 'Drink 2L of water', category: 'health' },
   { title: 'Ten-minute walk', category: 'health' },
@@ -22,7 +22,7 @@ const STARTERS = [
 const byDone = (a, b) => Number(a.done) - Number(b.done)
 const dateOf = (iso) => new Date(iso + 'T12:00:00')
 
-// A ruled list she can reorder by dragging the grip on the right of each line
+// Cards she can reorder by dragging the grip on the right of each one
 function RowList({ tasks, big, onReorder, rowProps }) {
   const ids = tasks.map((t) => t.id)
   const key = ids.join()
@@ -38,37 +38,23 @@ function RowList({ tasks, big, onReorder, rowProps }) {
     <Reorder.Group as="ul" axis="y" className="ruled" values={current} onReorder={(next) => { dragged.current = next; setOrder({ key, ids: next }) }}>
       <AnimatePresence initial={false}>
         {current.map((id) => byId.get(id)).filter(Boolean).map((t) => (
-          <TaskRow key={t.id} task={t} big={big} {...rowProps} onDrop={() => { if (dragged.current) onReorder(dragged.current); dragged.current = null }} />
+          <TaskRow key={t.id} task={t} big={big} {...rowProps} open={rowProps.openId === t.id} onDrop={() => { if (dragged.current) onReorder(dragged.current); dragged.current = null }} />
         ))}
       </AnimatePresence>
     </Reorder.Group>
   )
 }
 
-export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgress, onNotice }) {
+export default function Today({ name, days, selected, onSelect, countdowns, onOpenCountdowns, onOpenProgress, onNotice }) {
   const data = useTaskData()
   const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, restoreTask, addStep, toggleStep, removeStep, restoreStep } = data
-  const [selected, setSelected] = useState(null)
-  const [sheetOpen, setSheetOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [menuId, setMenuId] = useState(null) // the task whose three dots were tapped
+  const [openId, setOpenId] = useState(null) // the task whose steps are showing
   const [focus, setFocus] = useState(readFocus)
 
-  const day = selected && selected >= today ? selected : today
+  const day = selected
   const isToday = day === today
-
-  const days = useMemo(() => Array.from({ length: PLAN_AHEAD + 1 }, (_, i) => {
-    const iso = addDays(today, i)
-    const d = dateOf(iso)
-    const list = planFor(iso)
-    return {
-      iso,
-      isToday: i === 0,
-      dow: d.toLocaleDateString('en-GB', { weekday: 'short' }),
-      num: d.getDate(),
-      label: d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }),
-      count: i === 0 ? list.filter((t) => !t.done).length : list.length,
-    }
-  }), [today, planFor])
 
   const list = isToday ? todayTasks : planFor(day)
   const big = list.filter((t) => t.is_big3).sort(byDone)
@@ -77,7 +63,7 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
   const total = todayTasks.length
   const d = dateOf(day)
 
-  const edit = (task) => { setEditing(task); setSheetOpen(true) }
+  const edit = (task) => setEditing(task)
   const startFocus = (task) => setFocus({ taskId: task.id, title: task.title, minutes: 25, endsAt: null, left: null })
   const focusTask = focus && todayTasks.find((t) => t.id === focus.taskId)
   function finishFocus(taskId) {
@@ -85,7 +71,7 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
     if (t && !t.done) toggle(t)
     setFocus(null)
   }
-  const closeSheet = () => { setSheetOpen(false); setEditing(null) }
+  const closeSheet = () => setEditing(null)
 
   // Deleting offers a way back for a few seconds
   async function withUndo(text, remove, restore) {
@@ -98,7 +84,41 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
   const deleteTask = (task) => withUndo(`Deleted “${task.title}”`, () => removeTask(task), () => restoreTask(task))
   const deleteStep = (step) => withUndo(`Removed “${step.title}”`, () => removeStep(step), () => restoreStep(step))
 
-  const rowProps = { today, future: !isToday, onToggle: toggle, onRemove: deleteTask, onAddStep: addStep, onToggleStep: toggleStep, onRemoveStep: deleteStep, onEdit: edit, onFocus: startFocus }
+  const tomorrow = days[1].iso
+  const canMove = (task) => task.repeat === 'once' && !task.done && task.due_on !== tomorrow
+  async function toTomorrow(task) {
+    const back = task.due_on
+    try {
+      await moveToTomorrow(task)
+      onNotice({ text: `Moved “${task.title}” to tomorrow`, undo: () => updateTask(task, { due_on: back }).catch(() => onNotice({ text: 'It wasn’t moved back. Check your connection and try again.' })) })
+    } catch {
+      onNotice({ text: 'It wasn’t moved. Check your connection and try again.' })
+    }
+  }
+  // One place up or down, for when dragging isn't possible
+  function shift(task, by) {
+    const ids = (task.is_big3 ? big : rest).map((t) => t.id)
+    const i = ids.indexOf(task.id)
+    ;[ids[i], ids[i + by]] = [ids[i + by], ids[i]]
+    reorder(ids)
+  }
+  const menuTask = list.find((t) => t.id === menuId) ?? null
+  function menuActions(task) {
+    if (!task) return []
+    const siblings = (task.is_big3 ? big : rest).filter((t) => t.done === task.done)
+    const i = siblings.findIndex((t) => t.id === task.id)
+    return [
+      { label: 'Edit', run: () => edit(task) },
+      isToday && !task.done && { label: 'Focus on it', run: () => startFocus(task) },
+      { label: task.steps.length ? 'Show the steps' : 'Break it into steps', run: () => setOpenId(task.id) },
+      canMove(task) && { label: 'Move to tomorrow', run: () => toTomorrow(task) },
+      i > 0 && { label: 'Move up', run: () => shift(task, -1) },
+      i < siblings.length - 1 && { label: 'Move down', run: () => shift(task, 1) },
+      { label: 'Delete', danger: true, run: () => deleteTask(task) },
+    ].filter(Boolean)
+  }
+
+  const rowProps = { today, future: !isToday, onToggle: toggle, onRemove: deleteTask, onAddStep: addStep, onToggleStep: toggleStep, onRemoveStep: deleteStep, onEdit: edit, onMenu: (t) => setMenuId(t.id), openId, onOpen: setOpenId }
 
   return (
     <main className="today">
@@ -134,7 +154,7 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
 
       {!isToday && <p className="greeting">Planning {d.toLocaleDateString('en-GB', { weekday: 'long' })}</p>}
 
-      <DayStrip days={days} selected={day} onSelect={setSelected} />
+      <DayStrip days={days} selected={day} onSelect={onSelect} />
 
       <section className="pad" aria-label={isToday ? 'Today’s list' : `Plan for ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}>
         {isToday && <p className="quote">{quoteOfTheDay()}</p>}
@@ -144,7 +164,7 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
         ) : list.length === 0 ? (
           <div className="blank">
             <p className="blank-title">{isToday ? 'Blank page.' : 'Nothing planned yet.'}</p>
-            <p className="blank-sub">{isToday ? 'Write the first thing you want done today, or pick one of these.' : 'Add what you already know is coming, so the day starts with a plan.'}</p>
+            <p className="blank-sub">{isToday ? 'Tap the plus to write the first thing you want done today, or pick one of these.' : 'Tap the plus to add what you already know is coming.'}</p>
             {isToday && (
               <ul className="ruled">
                 {STARTERS.map((s) => (
@@ -175,16 +195,11 @@ export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgre
           </>
         )}
 
-        <button type="button" className="write-row" onClick={() => { setEditing(null); setSheetOpen(true) }}>
-          <span className="row-margin"><span className="pen" aria-hidden="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-          </span></span>
-          <span>{isToday ? 'Write a task' : `Plan something for ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}</span>
-        </button>
-
       </section>
 
-      <AddTaskSheet open={sheetOpen} editing={editing} onClose={closeSheet} onAdd={addTask}
+      <TaskMenu task={menuTask} actions={menuActions(menuTask)} onClose={() => setMenuId(null)} />
+
+      <AddTaskSheet open={!!editing} editing={editing} onClose={closeSheet} onAdd={addTask}
         onSave={updateTask} onMoveTomorrow={moveToTomorrow} onDelete={deleteTask}
         bigCount={todayTasks.filter((t) => t.is_big3).length} days={days} day={day} />
 

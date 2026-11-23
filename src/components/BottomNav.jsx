@@ -12,11 +12,16 @@ const TABS = [
   { id: 'nudges', label: 'Nudges' },
 ]
 
-export default function BottomNav({ tab, onChange, notesDot, nudgesDot }) {
+export default function BottomNav({ tab, onChange, onAdd, notesDot, nudgesDot }) {
+  const add = (
+    <button key="add" type="button" className="nav-add" aria-label="New task" onClick={onAdd}>
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+    </button>
+  )
   return (
     <nav className="bottom-nav" aria-label="Main">
       <div className="bottom-nav-inner">
-        {TABS.map((t) => (
+        {TABS.flatMap((t, i) => [i === TABS.length / 2 && add, (
           <button
             key={t.id}
             type="button"
@@ -33,7 +38,7 @@ export default function BottomNav({ tab, onChange, notesDot, nudgesDot }) {
             </span>
             {t.label}
           </button>
-        ))}
+        )])}
       </div>
     </nav>
   )

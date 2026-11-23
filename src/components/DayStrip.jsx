@@ -1,4 +1,4 @@
-// Today + the next 5 days, like the tabs on the edge of a planner
+// Today + the next 5 days; the selected one is a rounded block
 export default function DayStrip({ days, selected, onSelect }) {
   return (
     <div className="daystrip" role="tablist" aria-label="Plan your days">

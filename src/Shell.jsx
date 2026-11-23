@@ -6,7 +6,9 @@ import { useNotes } from './hooks/useNotes'
 import { usePartner, cleanName } from './hooks/usePartner'
 import { useNotebook } from './hooks/useNotebook'
 import { useCountdowns } from './hooks/useCountdowns'
+import { usePlanDays } from './hooks/usePlanDays'
 import { syncPush } from './lib/push'
+import AddTaskSheet from './components/AddTaskSheet'
 import BottomNav from './components/BottomNav'
 import DayComplete from './components/DayComplete'
 import UndoBar from './components/UndoBar'
@@ -17,6 +19,7 @@ import Notes from './screens/Notes'
 import NotesAdmin from './screens/NotesAdmin'
 import Nudges from './screens/Nudges'
 import './Shell.css'
+import './Cards.css'
 
 const CELEBRATED_KEY = 'bob-celebrated-on'
 const readCelebrated = () => { try { return localStorage.getItem(CELEBRATED_KEY) } catch { return null } }
@@ -25,7 +28,11 @@ const saveCelebrated = (iso) => { try { localStorage.setItem(CELEBRATED_KEY, iso
 export default function Shell({ user }) {
   const [tab, setTab] = useState('today')
   const { profile, update } = useProfile(user.id)
-  const { loading, todayTasks, today } = useTaskData()
+  const { loading, todayTasks, today, addTask } = useTaskData()
+  const days = usePlanDays()
+  const [picked, setPicked] = useState(null)
+  const day = tab === 'today' && days.some((d) => d.iso === picked) ? picked : today
+  const [adding, setAdding] = useState(false)
   const notes = useNotes(user.id)
   const { partner, partnerName } = usePartner(user.id)
   const notebook = useNotebook(user.id)
@@ -56,6 +63,22 @@ export default function Shell({ user }) {
     setCelebrated(today)
   }
 
+  const notify = (n) => setNotice({ ...n, id: crypto.randomUUID() })
+
+  function openTab(id) {
+    if (id === 'today') setPicked(null)
+    setTab(id)
+  }
+
+  async function addFromPlus(fields) {
+    await addTask(fields)
+    // On Today the new card shows up by itself; from anywhere else, say so
+    if (tab !== 'today') {
+      const d = days.find((x) => x.iso === fields.due_on)
+      notify({ text: `Added to ${d && !d.isToday ? d.label : 'today'}` })
+    }
+  }
+
   const switcher = (
     <div className="pills notes-switch" role="group" aria-label="Letters">
       <button type="button" className={`pill ${notesView === 'inbox' ? 'is-on' : ''}`} aria-pressed={notesView === 'inbox'}
@@ -66,9 +89,9 @@ export default function Shell({ user }) {
   )
 
   const screens = {
-    today: <Today name={cleanName(profile?.display_name)} countdowns={countdowns}
+    today: <Today name={cleanName(profile?.display_name)} days={days} selected={day} onSelect={setPicked} countdowns={countdowns}
       onOpenCountdowns={() => { setNotebookView('countdowns'); setTab('notebook') }}
-      onNotice={(n) => setNotice({ ...n, id: crypto.randomUUID() })}
+      onNotice={notify}
       onOpenProgress={() => { setTab('progress'); window.scrollTo(0, 0) }} />,
     notebook: <Notebook userId={user.id} notebook={notebook} countdowns={countdowns} partner={partner} partnerName={partnerName}
       view={notebookView} onView={setNotebookView} />,
@@ -94,7 +117,10 @@ export default function Shell({ user }) {
       </AnimatePresence>
 
       {/* Progress opens from Today, so it belongs to that tab */}
-      <BottomNav tab={tab === 'progress' ? 'today' : tab} onChange={setTab} notesDot={notes.hasNew} nudgesDot={pushIssue} />
+      <BottomNav tab={tab === 'progress' ? 'today' : tab} onChange={openTab} onAdd={() => setAdding(true)} notesDot={notes.hasNew} nudgesDot={pushIssue} />
+
+      <AddTaskSheet open={adding} onClose={() => setAdding(false)} onAdd={addFromPlus}
+        bigCount={todayTasks.filter((t) => t.is_big3).length} days={days} day={day} />
 
       <AnimatePresence>
         {notice && (
