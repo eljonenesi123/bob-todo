@@ -3,11 +3,12 @@ import PaperSheet from './PaperSheet'
 import CheckRow from './CheckRow'
 
 // New group, or edit one when `group` is given
-export default function GroupSheet({ group, count, notebook, partner, partnerName, mine, onClose, onSaved, onDeleted }) {
+export default function GroupSheet({ group, count, notebook, partner, partnerName, mine, onClose, onSaved, onDeleted, onLock }) {
   const [title, setTitle] = useState(group?.title ?? '')
   const [shared, setShared] = useState(!!group?.shared_with)
   const [busy, setBusy] = useState(false)
   const [sure, setSure] = useState(false)
+  const [unlocking, setUnlocking] = useState('')
   const [error, setError] = useState('')
 
   async function save() {
@@ -21,6 +22,20 @@ export default function GroupSheet({ group, count, notebook, partner, partnerNam
     } catch {
       setError('The group wasn’t saved. Check your connection and try again.')
       setBusy(false)
+    }
+  }
+
+  async function removeLock() {
+    if (unlocking !== 'sure') return setUnlocking('sure')
+    setBusy(true)
+    setError('')
+    try {
+      await notebook.removeLock(group)
+      onClose()
+    } catch {
+      setError('The lock is still on. Check your connection and try again.')
+      setBusy(false)
+      setUnlocking('')
     }
   }
 
@@ -50,6 +65,8 @@ export default function GroupSheet({ group, count, notebook, partner, partnerNam
       <button className="btn btn-ink" disabled={busy || !title.trim()}>{group ? 'Save changes' : 'Create group'}</button>
       {group && mine && (
         <div className="sheet-more">
+          <button type="button" className="ink-btn" disabled={busy} onClick={onLock}>{group.lock ? 'Change the PIN' : 'Lock with a PIN'}</button>
+          {group.lock && <button type="button" className="ink-btn" disabled={busy} onClick={removeLock}>{unlocking ? 'Tap again to remove the lock' : 'Remove the lock'}</button>}
           <button type="button" className="ink-btn danger" disabled={busy} onClick={remove}>
             {!sure ? 'Delete group' : count ? `Tap again to delete it with ${count} note${count === 1 ? '' : 's'}` : 'Tap again to delete'}
           </button>

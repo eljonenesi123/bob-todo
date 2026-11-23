@@ -3,7 +3,10 @@ import { motion } from 'framer-motion'
 import { supabase } from '../lib/supabase'
 import { toISO } from '../lib/dates'
 import { isIOS, isStandalone, notificationsSupported } from '../lib/pwa'
+import { useConnection } from '../hooks/useConnection'
+import { flush, dropOutbox, outboxState } from '../lib/outbox'
 import { enablePush, disablePush, deviceStatus } from '../lib/push'
+import Backup from '../components/Backup'
 import './Nudges.css'
 
 const STYLES = [
@@ -21,11 +24,13 @@ function Switch({ on, label, disabled, onClick }) {
   )
 }
 
-export default function Nudges({ profile, update, onPushFixed, partnerName }) {
+export default function Nudges({ userId, profile, update, onPushFixed, partnerName }) {
   // 'on' only when Bob's server really has this device; see deviceStatus()
   const [status, setStatus] = useState(notificationsSupported() ? 'checking' : 'unsupported')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const { pending } = useConnection()
+  const [leaving, setLeaving] = useState({ busy: false, sure: false, error: '' })
   const today = toISO()
   const snoozed = profile?.snoozed_on === today
 
@@ -64,6 +69,16 @@ export default function Nudges({ profile, update, onPushFixed, partnerName }) {
     await disablePush().catch(() => {})
     setStatus('off')
     setBusy(false)
+  }
+
+  // Changes that weren't sent yet would be lost, so ask first
+  async function signOut() {
+    setLeaving((l) => ({ ...l, busy: true, error: '' }))
+    await flush()
+    if (outboxState().pending && !leaving.sure) return setLeaving({ busy: false, sure: true, error: '' })
+    const { error } = await supabase.auth.signOut()
+    if (error) return setLeaving({ busy: false, sure: false, error: 'Signing out needs a connection. Try again later.' })
+    dropOutbox()
   }
 
   const on = status === 'on'
@@ -167,8 +182,13 @@ export default function Nudges({ profile, update, onPushFixed, partnerName }) {
           </>
         )}
 
+        <Backup userId={userId} />
+
         <div className="pad-block signout-row">
-          <button type="button" className="ink-btn" onClick={() => supabase.auth.signOut()}>Sign out</button>
+          <button type="button" className="ink-btn" disabled={leaving.busy} onClick={signOut}>
+            {leaving.sure && pending ? `Sign out and lose ${pending === 1 ? 'one change' : `${pending} changes`}` : 'Sign out'}
+          </button>
+          {leaving.error && <p className="error" role="alert">{leaving.error}</p>}
         </div>
       </section>
     </main>

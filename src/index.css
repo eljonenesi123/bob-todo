@@ -19,8 +19,8 @@
   /* highlighter: only for what needs attention */
   --yellow: #FFC93C;
 
-  --font: 'Outfit', system-ui, sans-serif;
-  --serif: 'Newsreader', Georgia, serif;
+  --font: 'Outfit Variable', system-ui, sans-serif;
+  --serif: 'Newsreader Variable', Georgia, serif;
   --radius: 14px;
 
   font-family: var(--font);

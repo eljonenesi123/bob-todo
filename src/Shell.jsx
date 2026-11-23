@@ -7,6 +7,8 @@ import { usePartner, cleanName } from './hooks/usePartner'
 import { useNotebook } from './hooks/useNotebook'
 import { useCountdowns } from './hooks/useCountdowns'
 import { usePlanDays } from './hooks/usePlanDays'
+import { useConnection } from './hooks/useConnection'
+import { onRefused } from './lib/outbox'
 import { syncPush } from './lib/push'
 import AddTaskSheet from './components/AddTaskSheet'
 import BottomNav from './components/BottomNav'
@@ -63,6 +65,11 @@ export default function Shell({ user }) {
     setCelebrated(today)
   }
 
+  // A change that waited for a connection, and the server then said no
+  useEffect(() => onRefused(() => setNotice({ id: crypto.randomUUID(), text: 'One of your changes couldn’t be saved, so Bob took it back.' })), [])
+  const { offline, pending } = useConnection()
+  const waiting = pending === 1 ? 'One change is kept on this device.' : pending > 1 ? `${pending} changes are kept on this device.` : 'This is what Bob last saw.'
+
   const notify = (n) => setNotice({ ...n, id: crypto.randomUUID() })
 
   function openTab(id) {
@@ -99,11 +106,12 @@ export default function Shell({ user }) {
     notes: notesView === 'write'
       ? <NotesAdmin userId={user.id} partner={partner} partnerName={partnerName} switcher={switcher} />
       : <Notes notes={notes} allDone={allDone} switcher={switcher} />,
-    nudges: <Nudges profile={profile} update={update} onPushFixed={onPushFixed} partnerName={partnerName} />,
+    nudges: <Nudges userId={user.id} profile={profile} update={update} onPushFixed={onPushFixed} partnerName={partnerName} />,
   }
 
   return (
-    <>
+    <div className={offline ? 'is-offline' : undefined}>
+      {offline && <p className="offline-note" role="status"><strong>No connection.</strong> {waiting}</p>}
       <AnimatePresence mode="wait">
         <motion.div
           key={tab}
@@ -134,6 +142,6 @@ export default function Shell({ user }) {
           <DayComplete key="done" notes={notes} total={total} onClose={closeCelebration} />
         )}
       </AnimatePresence>
-    </>
+    </div>
   )
 }

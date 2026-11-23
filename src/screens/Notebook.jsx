@@ -5,6 +5,9 @@ import Group from './Group'
 import Countdowns from './Countdowns'
 import './Notebook.css'
 
+const LockIcon = () => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="3" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></svg>
+)
 const FolderIcon = () => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M3 18V6a1 1 0 0 1 1-1h5l2 3h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" /></svg>
 )
@@ -16,7 +19,7 @@ export default function Notebook({ userId, notebook, countdowns, partner, partne
   const open = groups.find((g) => g.id === openId)
 
   if (open) {
-    return <Group key={open.id} userId={userId} group={open} notes={notes.filter((n) => n.page_id === open.id)} notebook={notebook}
+    return <Group key={open.id} userId={userId} group={open} notebook={notebook}
       partner={partner} partnerName={partnerName} onClose={() => { setOpenId(null); window.scrollTo(0, 0) }} />
   }
 
@@ -64,10 +67,10 @@ export default function Notebook({ userId, notebook, countdowns, partner, partne
                 return (
                   <li key={g.id}>
                     <button type="button" className="pad-line" onClick={() => setOpenId(g.id)}>
-                      <span className="row-margin"><FolderIcon /></span>
+                      <span className="row-margin">{g.lock ? <LockIcon /> : <FolderIcon />}</span>
                       <span className="line-body">
                         <span className="line-title">{g.title}</span>
-                        <span className="line-sub">{count === 0 ? 'Empty' : `${count} note${count === 1 ? '' : 's'}`}</span>
+                        <span className="line-sub">{count === 0 ? 'Empty' : `${count} note${count === 1 ? '' : 's'}`}{g.lock ? ', locked' : ''}</span>
                         {g.shared_with && <span className="line-sub">{g.user_id === userId ? `Shared with ${partnerName || 'your person'}` : `Shared by ${partnerName || 'your person'}`}</span>}
                       </span>
                       <span className="line-end go" aria-hidden="true">

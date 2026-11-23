@@ -1,42 +1,52 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { sendLetter } from '../lib/photo'
+import { readCache, writeCache } from '../lib/cache'
+import { signedIn } from '../lib/session'
+import { write, withPending } from '../lib/outbox'
 
 // Letters (table "notes") and rewards for this user, plus the letters they wrote, to show what a reply answers
+// Nothing (null) when it couldn't be fetched
 async function fetchMine(userId) {
+  if (!await signedIn(userId)) return null
   const [n, r] = await Promise.all([
     supabase.from('notes').select('*').or(`recipient_id.eq.${userId},author_id.eq.${userId}`).order('created_at'),
     supabase.from('rewards').select('*').eq('recipient_id', userId).order('streak_required'),
   ])
-  const notes = n.data ?? []
+  if (n.error || r.error) return null
+  const notes = withPending('notes', n.data)
   const authorIds = [...new Set(notes.map((x) => x.author_id))]
   let authors = {}
   if (authorIds.length) {
     const { data } = await supabase.from('profiles').select('id, display_name').in('id', authorIds)
     authors = Object.fromEntries((data ?? []).map((p) => [p.id, p.display_name]))
   }
-  return { notes, rewards: r.data ?? [], authors }
+  return { notes, rewards: withPending('rewards', r.data), authors }
 }
 
 export function useNotes(userId) {
-  const [state, setState] = useState({ notes: [], rewards: [], authors: {}, loaded: false })
+  const [state, setState] = useState(() => readCache(userId, 'letters') ?? { notes: [], rewards: [], authors: {}, loaded: false })
 
   const load = useCallback(async () => {
     const res = await fetchMine(userId)
-    setState({ ...res, loaded: true })
+    if (res) setState({ ...res, loaded: true })
   }, [userId])
+
+  useEffect(() => { if (state.loaded) writeCache(userId, 'letters', state) }, [userId, state])
 
   useEffect(() => {
     let active = true
-    fetchMine(userId).then((res) => { if (active) setState({ ...res, loaded: true }) })
+    fetchMine(userId).then((res) => { if (active && res) setState({ ...res, loaded: true }) })
     // Surprise notes appear at their delivery time, so check now and then
     const timer = setInterval(load, 120000)
     const onVisible = () => { if (document.visibilityState === 'visible') load() }
     document.addEventListener('visibilitychange', onVisible)
+    window.addEventListener('online', load)
     return () => {
       active = false
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('online', load)
     }
   }, [userId, load])
 
@@ -51,13 +61,13 @@ export function useNotes(userId) {
   const openNote = useCallback(async (note) => {
     const opened_at = new Date().toISOString()
     setState((s) => ({ ...s, notes: s.notes.map((n) => (n.id === note.id ? { ...n, opened_at } : n)) }))
-    await supabase.from('notes').update({ opened_at }).eq('id', note.id)
+    await write({ table: 'notes', type: 'update', match: { id: note.id }, fields: { opened_at } })
   }, [])
 
   const claimReward = useCallback(async (reward) => {
     const claimed_at = new Date().toISOString()
     setState((s) => ({ ...s, rewards: s.rewards.map((r) => (r.id === reward.id ? { ...r, claimed_at } : r)) }))
-    await supabase.from('rewards').update({ claimed_at }).eq('id', reward.id)
+    await write({ table: 'rewards', type: 'update', match: { id: reward.id }, fields: { claimed_at } })
   }, [])
 
   // What this user answered to a letter

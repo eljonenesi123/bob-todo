@@ -47,7 +47,7 @@ function RowList({ tasks, big, onReorder, rowProps }) {
 
 export default function Today({ name, days, selected, onSelect, countdowns, onOpenCountdowns, onOpenProgress, onNotice }) {
   const data = useTaskData()
-  const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, restoreTask, addStep, toggleStep, removeStep, restoreStep } = data
+  const { loading, failed, reload, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, restoreTask, addStep, toggleStep, removeStep, restoreStep } = data
   const [editing, setEditing] = useState(null)
   const [menuId, setMenuId] = useState(null) // the task whose three dots were tapped
   const [openId, setOpenId] = useState(null) // the task whose steps are showing
@@ -161,6 +161,12 @@ export default function Today({ name, days, selected, onSelect, countdowns, onOp
 
         {loading ? (
           <div className="pad-loading" aria-label="Loading" />
+        ) : failed ? (
+          <div className="blank">
+            <p className="blank-title">Your tasks didn’t open.</p>
+            <p className="blank-sub">Check your connection and try again.</p>
+            <div className="pad-block"><button type="button" className="ink-btn" onClick={reload}>Try again</button></div>
+          </div>
         ) : list.length === 0 ? (
           <div className="blank">
             <p className="blank-title">{isToday ? 'Blank page.' : 'Nothing planned yet.'}</p>

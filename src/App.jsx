@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
 import { supabase } from './lib/supabase'
 import { setupDone } from './lib/pwa'
+import { storedSession } from './lib/session'
+import { clearCache } from './lib/cache'
 import TasksProvider from './context/TasksProvider'
 import Welcome from './screens/Welcome'
 import Setup from './screens/Setup'
@@ -12,8 +14,9 @@ import Splash from './components/Splash'
 const SPLASH_MS = 1600
 
 export default function App() {
-  const [session, setSession] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Without a connection an old session can't be renewed, but Bob still opens with what it last saw
+  const [session, setSession] = useState(storedSession)
+  const [loading, setLoading] = useState(() => !storedSession())
   const [needsSetup, setNeedsSetup] = useState(() => !setupDone())
   const [splashDone, setSplashDone] = useState(false)
 
@@ -24,10 +27,13 @@ export default function App() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session)
+      setSession(data.session ?? storedSession())
       setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === 'SIGNED_OUT') clearCache()
+      setSession(s ?? (event === 'SIGNED_OUT' ? null : storedSession()))
+    })
     return () => subscription.unsubscribe()
   }, [])
 
@@ -37,7 +43,7 @@ export default function App() {
     if (!session) screen = <Welcome />
     else if (needsSetup) screen = <Setup onDone={() => setNeedsSetup(false)} />
     else screen = (
-      <TasksProvider key={session.user.id}>
+      <TasksProvider key={session.user.id} userId={session.user.id}>
         <Shell user={session.user} />
       </TasksProvider>
     )

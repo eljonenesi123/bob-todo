@@ -4,7 +4,7 @@ import PaperSheet from './PaperSheet'
 const NAME_MAX = 200
 
 // Write a note, or edit one when `note` is given. A name, a text, done.
-export default function NoteSheet({ note, groupId, notebook, onClose }) {
+export default function NoteSheet({ note, group, notebook, onClose }) {
   const [opened, setOpened] = useState(note) // the version these words are based on
   const [title, setTitle] = useState(note?.title ?? '')
   const [body, setBody] = useState(note?.body ?? '')
@@ -24,7 +24,7 @@ export default function NoteSheet({ note, groupId, notebook, onClose }) {
       ? { title: title.trim() || first.slice(0, NAME_MAX), body: body.trim() }
       : { title: first, body: rest.join('\n').trim() }
     try {
-      const res = await notebook.saveNote(opened, groupId, fields)
+      const res = await notebook.saveNote(opened, group, fields)
       if (res.row) return onClose()
       setOpened(res.conflict ?? null)
       setError(res.gone

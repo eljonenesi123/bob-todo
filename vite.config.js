@@ -14,6 +14,11 @@ export default defineConfig({
       filename: 'sw.js',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
+      // Everything Bob needs to open without a connection, fonts included (Vietnamese letters left out)
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,woff2}'],
+        globIgnores: ['**/*vietnamese*'],
+      },
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Bob',
