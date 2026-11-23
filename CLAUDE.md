@@ -255,4 +255,9 @@ Backlog (ask Eljon to prioritise; her feedback decides):
 1. Works at 390px wide first, then desktop.
 2. `npm run lint` passes.
 3. Any SQL is in a new numbered file with plain run instructions; any Edge Function change comes with redeploy instructions.
+   Before handing over an Edge Function change, run it with Deno, not just a syntax check: `deno check` a copy of
+   `index.ts` (outside the repo, with `{ "nodeModulesDir": "none" }`), then start it with fake env vars and confirm a call
+   without the secret returns 401 `Unauthorized`. (2026-11-23: a stray line passed esbuild but crashed the function on
+   every run, so no notifications went out overnight. After any redeploy, a no-auth POST must say `Unauthorized`, not
+   `WORKER_ERROR`.)
 4. Tell Eljon exactly what to test, and give the push command in PowerShell-safe form.

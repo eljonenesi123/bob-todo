@@ -3,7 +3,7 @@
 //   SB_SECRET_KEY, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, CRON_SECRET
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
-s
+
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SB_SECRET_KEY')!, {
   auth: { persistSession: false },
 })
@@ -156,7 +156,7 @@ function message(kind: string, ctx: { name: string; style: string; total: number
 // ---------- sending ----------
 // Returns how many devices accepted the push (0 = nobody got it)
 async function sendToAll(subs: Sub[], payload: Record<string, unknown>) {
-  const results = await Promise.all(subs.map(async (s) => {
+  const results: number[] = await Promise.all(subs.map(async (s): Promise<number> => {
     try {
       await webpush.sendNotification(
         { endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } },
@@ -289,10 +289,27 @@ async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, s
   }
 }
 
+// A stray rejected promise (e.g. inside a push library) must never end the whole run:
+// the Edge Runtime stops the worker on one, which shows up as WORKER_ERROR.
+globalThis.addEventListener('unhandledrejection', (e) => {
+  console.error('unhandled rejection', (e as PromiseRejectionEvent).reason)
+  e.preventDefault()
+})
+
 Deno.serve(async (req) => {
   if (req.headers.get('x-cron-secret') !== Deno.env.get('CRON_SECRET')) {
     return new Response('Unauthorized', { status: 401 })
   }
+  try {
+    return await run(req)
+  } catch (e) {
+    // Readable in SQL: select content from net._http_response order by id desc limit 1
+    console.error('run failed', e)
+    return Response.json({ ok: false, error: String((e as Error)?.stack || e).slice(0, 500) }, { status: 500 })
+  }
+})
+
+async function run(req: Request) {
   const body = await req.json().catch(() => ({}))
 
   const [{ data: profiles, error: pErr }, { data: subs, error: sErr }] = await Promise.all([
@@ -324,4 +341,4 @@ Deno.serve(async (req) => {
     }
   }
   return Response.json({ ok: true, sent })
-})
+}
