@@ -99,6 +99,7 @@ src/hooks/usePartner.js    The other account (id, display_name) + cleanName()
 src/lib/supabase.js        createClient(URL, PUBLISHABLE_KEY)
 src/lib/dates.js           toISO (local YYYY-MM-DD), addDays, isDueOn (repeat rules + carry-over), greeting, prettyDate
 src/lib/photo.js           Letter photos: shrinkPhoto (1600px JPEG, drops location data), sendLetter (photo first, then the letter), photoUrl, deletePhoto
+src/lib/signin.js          Remembers for 15 min which address a code went to (iPhone may close Bob while reading the email); error texts
 src/lib/rows.js            allRows(): fetch every row, 1000 at a time (Supabase's limit per request)
 src/lib/countdown.js       daysUntil, inWords, checkInDue, nextUp (the one line on Today)
 src/lib/stats.js           dayStatus, currentStreak, bestStreak, weekBars, monthGrid, doneLast7Days
@@ -109,8 +110,10 @@ src/lib/push.js            enablePush / disablePush / syncPush / deviceStatus. "
                            this account, not just allowed; a subscription owned by another account is replaced
 src/lib/focus.js           Focus timer session in localStorage (survives closing the app)
 
-src/screens/Welcome.*      Email → 6-digit code sign-in ("Sign in or create your account")
-src/screens/Setup.*        First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
+src/screens/Welcome.jsx    Sign-in: opening page → email → 6-digit code (six boxes, signs in by itself at the sixth digit, "Send a new code" after 60 s)
+src/screens/Setup.jsx      First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
+src/screens/Auth.css       Look of both: dark top, then a sheet of paper with big round corners at the bottom of the screen
+src/hooks/useVisibleHeight.js  Keeps that sheet above the iPhone keyboard
 src/screens/Today.*        Planner page: "Good evening, <name>" at the top, date masthead, tally, day strip (today + 5), legal-pad list, Big three, steps
 src/screens/Progress.*     Streak numeral + tally marks, week bars, pen-marked month calendar, next reward
 src/screens/Notebook.*     List of groups + Notes/Countdowns switch
@@ -135,6 +138,7 @@ src/components/LetterReply.jsx  Reply box under an open letter (Letters and Day 
 src/components/NextUp.*         One line on Today: nearest countdown, or the check-in to do
 src/components/CountdownSheet.jsx Paper sheet to add/edit a countdown or trip
 src/components/GroupSheet.jsx, NoteSheet.jsx  Add/edit a group (name, share) or a note (name, text; autocorrect off for passwords)
+src/components/CodeInput.jsx   Six boxes over one real input (typing, pasting and the phone's code suggestion work)
 src/components/PaperSheet.jsx, CheckRow.jsx, BackButton.jsx  Shared pieces for sheets and pages that open from a button
 src/components/BottomNav.jsx    4 tabs and the round + (new task), yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
 
@@ -266,6 +270,10 @@ Notebook, countdowns, replies (2026-11-23):
 Notebook as groups, Progress as a button (2026-11-23). To ship it, in this order:
 - [x] Run `supabase/sql/08_notebook_groups.sql` (the last line must answer 0) BEFORE pushing (Eljon confirmed)
 - [x] Push to main (no Edge Function change)
+
+New sign-in and setup look (2026-11-23), signing in itself unchanged (email code, no passwords, no Google: see §6):
+- [x] Push to main (no SQL, no Edge Function change)
+- [ ] Test on the iPhone: sign out, get a code, switch to Mail and back, code suggestion above the keyboard, no dark gap under the sheet
 
 Outfit font and task cards (2026-11-23):
 - [x] Push to main (no SQL, no Edge Function change)

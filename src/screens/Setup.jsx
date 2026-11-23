@@ -4,7 +4,7 @@ import {
   canPromptInstall, onInstallAvailable, promptInstall, markSetupDone,
 } from '../lib/pwa'
 import { enablePush } from '../lib/push'
-import './Setup.css'
+import './Auth.css'
 
 const Check = () => (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12l5 5L20 7" /></svg>
@@ -39,16 +39,17 @@ export default function Setup({ onDone }) {
   const stepsDone = Number(installed) + Number(permission === 'granted')
 
   return (
-    <main className="paper-page setup">
-      <header className="desk-head">
-        <h1 className="page-title">Two quick things</h1>
-        <p className="page-sub">So Bob can cheer you on during the day. {stepsDone} of 2 done.</p>
+    <main className="auth">
+      <header className="auth-head">
+        <div className="auth-gap" />
+        <h1 className="auth-title">Two quick things</h1>
+        <p className="auth-sub">So Bob can cheer you on during the day. <span className="keep">{stepsDone} of 2 done.</span></p>
       </header>
 
-      <section className="pad setup-pad">
-        <ol className="ruled setup-list">
+      <section className="auth-sheet">
+        <ol className="setup-list">
           <li className="setup-step">
-            <span className="row-margin"><Mark done={installed} n={1} /></span>
+            <Mark done={installed} n={1} />
             <div className="setup-body">
               <h2 className="line-title">{installed ? 'Bob is on your Home Screen' : 'Add Bob to your Home Screen'}</h2>
 
@@ -85,7 +86,7 @@ export default function Setup({ onDone }) {
           </li>
 
           <li className="setup-step">
-            <span className="row-margin"><Mark done={permission === 'granted'} n={2} /></span>
+            <Mark done={permission === 'granted'} n={2} />
             <div className="setup-body">
               <h2 className="line-title">{permission === 'granted' ? 'Nudges are on' : 'Turn on nudges'}</h2>
               {permission === 'default' && (
@@ -104,9 +105,9 @@ export default function Setup({ onDone }) {
           </li>
         </ol>
 
-        <div className="pad-block setup-actions">
+        <div className="setup-actions">
           <button type="button" className="btn btn-ink" onClick={finish}>Continue</button>
-          <button type="button" className="ink-btn" onClick={finish}>Skip for now</button>
+          {stepsDone < 2 && <button type="button" className="auth-again" onClick={finish}>Skip for now</button>}
         </div>
       </section>
     </main>
