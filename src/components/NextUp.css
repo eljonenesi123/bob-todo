@@ -1,5 +1,5 @@
 /* The nearest countdown, one quiet line on the desk */
-.next-up { margin: -8px 22px 10px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; }
+.next-up { margin: -4px 22px 10px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 12px; }
 .next-up-open {
   flex: 1; min-width: 0; min-height: 44px; padding: 0; border: none; background: none; cursor: pointer; text-align: left;
   color: var(--muted); font-size: 16px; line-height: 1.35; overflow-wrap: anywhere;

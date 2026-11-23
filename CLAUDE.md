@@ -19,7 +19,7 @@ Core idea: a calm daily planner that **nudges her with push notifications** only
 Accounts (since 2026-11-22 both have **the same features**):
 - Each person has their own tasks (RLS), streak, rewards and notifications.
 - The **Letters** tab (called Notes until 2026-11-23; code and table still say `notes`) has two sides for both: **For you** (letters and rewards received, reply to a letter) and **Write to <name>** (send letters and rewards to the other).
-- The **Notebook** tab has **Pages** (free text or a list, private unless shared) and **Countdowns** (trips and other days).
+- The **Notebook** tab has **Notes** (groups like "Gift ideas" with notes inside, private unless the group is shared) and **Countdowns** (trips and other days). Notes are stored as plain text: whoever can open the Supabase project can read them (see §9, PIN lock).
 - Each can turn on "Tell <name> when I finish my day".
 - `profiles.role` ('admin' for Eljon) no longer changes anything in the app; it's only kept in the data. Copy uses the other person's display name, never "she/her".
 
@@ -77,7 +77,7 @@ public/icons/*, apple-touch-icon.png, favicon.svg   Sun-on-yellow app icons
 src/main.jsx               React root
 src/App.jsx                Session gate: Welcome (signed out) → Setup (first run) → TasksProvider + Shell
                            Splash (src/components/Splash.*) on top for ≥1.6s: Tally mark draws itself + quote of the day
-src/Shell.jsx              Tabs (today/notebook/notes/progress/nudges), Letters switch (For you / Write to <name>), BottomNav,
+src/Shell.jsx              Tabs (today/notebook/notes/nudges; progress opens from the button on Today), Letters switch (For you / Write to <name>), BottomNav,
                            Day-complete overlay, syncPush(); passes partner + names down
 src/sw.js                  Service worker: precache, offline navigation, 'push' + 'notificationclick', app badge
 src/index.css              Global tokens (colors, fonts), .screen/.btn/.field basics
@@ -90,14 +90,13 @@ src/hooks/useTasks.js      Fetch tasks/completions/subtasks, realtime sync, toda
                            removeTask (archive), addStep, toggleStep, removeStep
 src/hooks/useProfile.js    Own profile, update(); auto-saves browser timezone
 src/hooks/useNotes.js      Letters (received and written) and rewards; openNote, claimReward, sendReply, repliesTo, answers, author names
-src/hooks/useNotebook.js   Pages and list lines, realtime; savePage (notices edits from another device), setPage (pin/share), items
+src/hooks/useNotebook.js   Groups and the notes inside, realtime; saveGroup, removeGroup, saveNote (notices edits from another device), removeNote
 src/hooks/useCountdowns.js Countdowns and trips, realtime; add, update, remove
 src/hooks/usePartner.js    The other account (id, display_name) + cleanName()
 
 src/lib/supabase.js        createClient(URL, PUBLISHABLE_KEY)
 src/lib/dates.js           toISO (local YYYY-MM-DD), addDays, isDueOn (repeat rules + carry-over), greeting, prettyDate
 src/lib/rows.js            allRows(): fetch every row, 1000 at a time (Supabase's limit per request)
-src/lib/pageDraft.js       The writing on one open page: autosave, offline copy in localStorage, conflicts
 src/lib/countdown.js       daysUntil, inWords, checkInDue, nextUp (the one line on Today)
 src/lib/stats.js           dayStatus, currentStreak, bestStreak, weekBars, monthGrid, doneLast7Days
 src/lib/quotes.js          20 original quotes; quoteOfTheDay() by day-of-year (SAME list as the Edge Function)
@@ -111,8 +110,8 @@ src/screens/Welcome.*      Email → 6-digit code sign-in ("Sign in or create yo
 src/screens/Setup.*        First-run: Add to Home Screen (iOS steps / desktop install) + allow notifications
 src/screens/Today.*        Planner page: "Good evening, <name>" at the top, date masthead, tally, day strip (today + 5), legal-pad list, Big three, steps
 src/screens/Progress.*     Streak numeral + tally marks, week bars, pen-marked month calendar, next reward
-src/screens/Notebook.*     Pages list + Pages/Countdowns switch; search appears from 8 pages
-src/screens/PageEditor.jsx One open page or list: writes itself down, pin, share, delete (two taps)
+src/screens/Notebook.*     List of groups + Notes/Countdowns switch
+src/screens/Group.jsx       One open group: all its notes readable, copy button, Edit group
 src/screens/Countdowns.jsx Countdown list, "Done" for a check-in
 src/screens/Notes.*        "For you" (Letters tab): surprises and replies, locked count, rewards (claim), opened letters
 src/screens/NotesAdmin.jsx "Write to <name>": notes (after a finished day / surprise at a time), rewards, real delivery status
@@ -129,10 +128,12 @@ src/components/DayComplete.*    Full-screen celebration + sealed note to open
 src/components/LetterReply.jsx  Reply box under an open letter (Letters and Day complete)
 src/components/NextUp.*         One line on Today: nearest countdown, or the check-in to do
 src/components/CountdownSheet.jsx Paper sheet to add/edit a countdown or trip
-src/components/BottomNav.jsx    5 tabs (that's the maximum), yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
+src/components/GroupSheet.jsx, NoteSheet.jsx  Add/edit a group (name, share) or a note (name, text; autocorrect off for passwords)
+src/components/PaperSheet.jsx, CheckRow.jsx, BackButton.jsx  Shared pieces for sheets and pages that open from a button
+src/components/BottomNav.jsx    4 tabs, yellow dot on Letters for new surprises, on Nudges when this phone couldn't connect
 
 supabase/functions/send-nudges/index.ts  The nudge engine (see §7)
-supabase/sql/01..07_*.sql                Schema history (what still has to be run: see §9)
+supabase/sql/01..08_*.sql                Schema history (what still has to be run: see §9)
 ```
 
 ---
@@ -151,9 +152,9 @@ All tables have **RLS on**. Users only see their own rows unless stated.
 - **rewards**: `title`, `streak_required`, `notified_at`, `claimed_at`. Recipient can only update `claimed_at`.
 - **push_subscriptions**: one row per device (`endpoint` unique, `p256dh`, `auth`). `push_device_count(person)` (security definer) tells either of you how many devices a person has (count only).
 - **nudge_log**: `(user_id, kind, ref, sent_on)` unique. Server-only (RLS on, no policies). Prevents duplicate pushes.
-- **notebook_pages**: `kind` ('note'|'list'), `title`, `body`, `pinned`, `shared_with`, `updated_at` (trigger: moves only when title/body change; the app saves with `.eq('updated_at', base)` so it never overwrites a newer version). **notebook_items**: lines of a list (`done_at`, `position`).
+- **notebook_pages** = groups: `title`, `shared_with` (`kind`, `body`, `pinned` are left over from the first version and unused). **notebook_items** = notes in a group: `title`, `body`, `updated_at` (trigger: moves only when title/body change; the app saves with `.eq('updated_at', …)` so it never overwrites a newer version). `done_at`/`position` unused.
 - **countdowns**: `title`, `on_date`, `is_trip`, `checkin_at` (time of day, the day before; null = no reminder), `checked_in_at`, `shared_with`.
-- Pages and countdowns are seen and edited by `user_id` and `shared_with`; only the owner can delete or stop sharing. New tables need explicit GRANTs (see SQL 07).
+- Groups and countdowns are seen and edited by `user_id` and `shared_with`; only the owner can delete or stop sharing. New tables need explicit GRANTs (see SQL 07).
 - Realtime publication includes: tasks, task_completions, subtasks, notebook_pages, notebook_items, countdowns.
 - Cron: job `bob-nudges` runs every 5 minutes → `net.http_post` to the Edge Function with header `x-cron-secret`.
 
@@ -251,11 +252,14 @@ Must verify after the last commit (`5400f36 Steps, 5-day planning, daily quote, 
 - [x] New look is live (checked 2026-11-22: the Pages bundle contains the Today page strings)
 - [ ] New look reviewed on iPhone + PC; fix visual bugs from screenshots (needs Eljon on the real devices)
 
-Notebook, countdowns, replies (2026-11-23). To ship it, in this order:
-- [ ] Run `supabase/sql/07_notebook_countdowns_replies.sql` in the SQL Editor (the last line must answer 3)
-- [ ] Redeploy the Edge Function (crash fix, check-in reminder, replies, 60-day fix), check Verify JWT is still off
-- [ ] Push to main
-- [ ] Test on the iPhone: write a page, tick a list, add a trip for tomorrow (check-in push), reply to a letter
+Notebook, countdowns, replies (2026-11-23):
+- [x] `07_notebook_countdowns_replies.sql` was run (Eljon: the check answered 3), Edge Function deployed (Supabase said success), pushed and live (63d5a7d)
+- [ ] A no-auth POST to the function says `Unauthorized`
+- [ ] Tested on the iPhone: check-in push, reply to a letter
+
+Notebook as groups, Progress as a button (2026-11-23). To ship it, in this order:
+- [x] Run `supabase/sql/08_notebook_groups.sql` (the last line must answer 0) BEFORE pushing (Eljon confirmed)
+- [x] Push to main (no Edge Function change)
 
 Batch of 2026-11-22 (honest Nudges switch, delivery status, quote fix, cleanup, all screens restyled, edit task, move to tomorrow, reorder, focus timer, "she finished her day"). To ship it, in this order:
 - [ ] Run `supabase/sql/05_order_sharing_delivery.sql` in the SQL Editor
@@ -269,7 +273,8 @@ Equal features (2026-11-22, after the batch above):
 - [ ] Eljon turns on Nudges on his own phone (Bob → Nudges → switch) so he gets notifications too
 
 Backlog (ask Eljon to prioritise; her feedback decides):
-- Notebook line to a task on Today; someday list; undo after delete (ideas of 2026-11-23, left out to keep screens light)
+- PIN lock for a group, encrypted on the device before it reaches Supabase (so passwords aren't readable in the database). Decide this before real passwords go in.
+- Someday list; undo after delete; plan further than 5 days (ideas of 2026-11-23)
 - Nightly 1-tap mood check-in
 - Albanian/English language switch (Eljon builds multilingual sites: EN/SQ/DE)
 - Keyboard way to reorder tasks (drag is pointer-only today)

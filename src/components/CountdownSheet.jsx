@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import { deviceStatus } from '../lib/push'
+import CheckRow from './CheckRow'
+import PaperSheet from './PaperSheet'
 
 const KINDS = [{ id: true, label: 'Trip' }, { id: false, label: 'Something else' }]
 const DEFAULT_TIME = '10:00'
@@ -11,15 +13,6 @@ export default function CountdownSheet({ open, item, ...rest }) {
     <AnimatePresence>
       {open && <Sheet key={item?.id ?? 'new'} item={item} {...rest} />}
     </AnimatePresence>
-  )
-}
-
-function Check({ label, hint, checked, onChange }) {
-  return (
-    <label className="big3-check is-on">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
-      <span className="big3-text">{label}{hint && <small>{hint}</small>}</span>
-    </label>
   )
 }
 
@@ -60,8 +53,7 @@ function Sheet({ item, onClose, countdowns, userId, partner, partnerName, today 
     }
   }
 
-  function submit(e) {
-    e.preventDefault()
+  function submit() {
     if (!form.title.trim() || !form.on_date) return
     const fields = {
       title: form.title.trim(),
@@ -82,61 +74,49 @@ function Sheet({ item, onClose, countdowns, userId, partner, partnerName, today 
   }
 
   return (
-    <>
-      <motion.div className="sheet-backdrop" onClick={onClose}
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-      <motion.form className="sheet paper" onSubmit={submit} aria-label={item ? 'Edit countdown' : 'New countdown'}
-        initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }}
-        transition={{ type: 'spring', stiffness: 380, damping: 38 }}>
-        <div className="sheet-handle" aria-hidden="true" />
-        <div className="sheet-head">
-          <h2>{item ? 'Edit countdown' : 'New countdown'}</h2>
-          <button type="button" className="sheet-close" onClick={onClose}>Cancel</button>
+    <PaperSheet title={item ? 'Edit countdown' : 'New countdown'} onClose={onClose} onSubmit={submit}>
+      <div className="pills" role="group" aria-label="Kind">
+        {KINDS.map((k) => (
+          <button type="button" key={k.label} className={`pill ${form.is_trip === k.id ? 'is-on' : ''}`}
+            aria-pressed={form.is_trip === k.id} onClick={() => set('is_trip', k.id)}>{k.label}</button>
+        ))}
+      </div>
+
+      <input className="line-input big-input" autoFocus={!item} maxLength={80} aria-label={form.is_trip ? 'Where to' : 'What is it'}
+        placeholder={form.is_trip ? 'Where to?' : 'What is it?'} value={form.title} onChange={(e) => set('title', e.target.value)} />
+
+      <label className="sheet-field">
+        <span className="legend-like">{form.is_trip ? 'You leave on' : 'Date'}</span>
+        <input type="date" className="line-input" required min={item ? undefined : today} value={form.on_date} onChange={(e) => set('on_date', e.target.value)} />
+      </label>
+
+      {form.is_trip && (
+        <div className="sheet-check">
+          <CheckRow label="Remind me to check in online" checked={form.remind} onChange={(v) => set('remind', v)} />
+          {form.remind && (
+            <label className="check-time">
+              <span>The day before, at</span>
+              <input type="time" className="line-input" value={form.checkin_at} onChange={(e) => set('checkin_at', e.target.value)} />
+            </label>
+          )}
+          {form.remind && pushOff && <p className="field-hint">Notifications are off on this device. Turn them on in Nudges.</p>}
         </div>
+      )}
 
-        <div className="pills" role="group" aria-label="Kind">
-          {KINDS.map((k) => (
-            <button type="button" key={k.label} className={`pill ${form.is_trip === k.id ? 'is-on' : ''}`}
-              aria-pressed={form.is_trip === k.id} onClick={() => set('is_trip', k.id)}>{k.label}</button>
-          ))}
+      {mine && partner && (
+        <CheckRow label={`Share with ${partnerName || 'my person'}`} hint={reminding && form.shared ? 'You both get the reminder.' : ''}
+          checked={form.shared} onChange={(v) => set('shared', v)} />
+      )}
+
+      {error && <p className="error on-paper" role="alert">{error}</p>}
+      <button className="btn btn-ink" disabled={busy || !form.title.trim() || !form.on_date}>
+        {busy ? 'Saving…' : item ? 'Save changes' : 'Start counting'}
+      </button>
+      {item && mine && (
+        <div className="sheet-more">
+          <button type="button" className="ink-btn danger" disabled={busy} onClick={remove}>{sure ? 'Tap again to delete' : 'Delete countdown'}</button>
         </div>
-
-        <input className="line-input big-input" autoFocus={!item} maxLength={80} aria-label={form.is_trip ? 'Where to' : 'What is it'}
-          placeholder={form.is_trip ? 'Where to?' : 'What is it?'} value={form.title} onChange={(e) => set('title', e.target.value)} />
-
-        <label className="sheet-field">
-          <span className="legend-like">{form.is_trip ? 'You leave on' : 'Date'}</span>
-          <input type="date" className="line-input" required min={item ? undefined : today} value={form.on_date} onChange={(e) => set('on_date', e.target.value)} />
-        </label>
-
-        {form.is_trip && (
-          <div className="sheet-check">
-            <Check label="Remind me to check in online" checked={form.remind} onChange={(v) => set('remind', v)} />
-            {form.remind && (
-              <label className="check-time">
-                <span>The day before, at</span>
-                <input type="time" className="line-input" value={form.checkin_at} onChange={(e) => set('checkin_at', e.target.value)} />
-              </label>
-            )}
-            {form.remind && pushOff && <p className="field-hint">Notifications are off on this device. Turn them on in Nudges.</p>}
-          </div>
-        )}
-
-        {mine && partner && (
-          <Check label={`Share with ${partnerName || 'my person'}`} hint={reminding && form.shared ? 'You both get the reminder.' : ''}
-            checked={form.shared} onChange={(v) => set('shared', v)} />
-        )}
-
-        {error && <p className="error on-paper" role="alert">{error}</p>}
-        <button className="btn btn-ink" disabled={busy || !form.title.trim() || !form.on_date}>
-          {busy ? 'Saving…' : item ? 'Save changes' : 'Start counting'}
-        </button>
-        {item && mine && (
-          <div className="sheet-more">
-            <button type="button" className="ink-btn danger" disabled={busy} onClick={remove}>{sure ? 'Tap again to delete' : 'Delete countdown'}</button>
-          </div>
-        )}
-      </motion.form>
-    </>
+      )}
+    </PaperSheet>
   )
 }

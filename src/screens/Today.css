@@ -26,9 +26,10 @@
 .tally-bar i { width: 10px; height: 18px; border-radius: 2px; background: var(--gray-3); transition: background-color .3s ease; }
 .tally-bar i.on { background: var(--yellow); }
 
-/* Hello, at the very top of the page */
+/* Hello, at the very top of the page, with the way to Progress */
+.hello-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 22px 14px; }
 .hello {
-  margin: 0 22px 14px; font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em;
+  margin: 0; min-width: 0; overflow-wrap: anywhere; font-size: 22px; font-weight: 700; line-height: 1.2; letter-spacing: -0.01em;
   color: var(--silver);
 }
 .greeting { margin: 14px 22px 0; font-size: 17px; color: var(--muted); }

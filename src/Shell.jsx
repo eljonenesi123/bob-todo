@@ -29,7 +29,7 @@ export default function Shell({ user }) {
   const { partner, partnerName } = usePartner(user.id)
   const notebook = useNotebook(user.id)
   const countdowns = useCountdowns(user.id)
-  const [notebookView, setNotebookView] = useState('pages')
+  const [notebookView, setNotebookView] = useState('notes')
   // Letters tab has two sides for both of you: what you received, and writing to the other
   const [notesView, setNotesView] = useState('inbox')
   const [celebrated, setCelebrated] = useState(readCelebrated)
@@ -63,10 +63,11 @@ export default function Shell({ user }) {
 
   const screens = {
     today: <Today name={cleanName(profile?.display_name)} countdowns={countdowns}
-      onOpenCountdowns={() => { setNotebookView('countdowns'); setTab('notebook') }} />,
+      onOpenCountdowns={() => { setNotebookView('countdowns'); setTab('notebook') }}
+      onOpenProgress={() => { setTab('progress'); window.scrollTo(0, 0) }} />,
     notebook: <Notebook userId={user.id} notebook={notebook} countdowns={countdowns} partner={partner} partnerName={partnerName}
       view={notebookView} onView={setNotebookView} />,
-    progress: <Progress notes={notes} />,
+    progress: <Progress notes={notes} onClose={() => { setTab('today'); window.scrollTo(0, 0) }} />,
     notes: notesView === 'write'
       ? <NotesAdmin userId={user.id} partner={partner} partnerName={partnerName} switcher={switcher} />
       : <Notes notes={notes} allDone={allDone} switcher={switcher} />,
@@ -87,7 +88,8 @@ export default function Shell({ user }) {
         </motion.div>
       </AnimatePresence>
 
-      <BottomNav tab={tab} onChange={setTab} notesDot={notes.hasNew} nudgesDot={pushIssue} />
+      {/* Progress opens from Today, so it belongs to that tab */}
+      <BottomNav tab={tab === 'progress' ? 'today' : tab} onChange={setTab} notesDot={notes.hasNew} nudgesDot={pushIssue} />
 
       <AnimatePresence>
         {showCelebration && (

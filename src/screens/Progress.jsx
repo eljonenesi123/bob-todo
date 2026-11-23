@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { useTaskData } from '../context/tasks'
 import { currentStreak, bestStreak, weekBars, monthGrid, doneLast7Days } from '../lib/stats'
+import BackButton from '../components/BackButton'
 import './Progress.css'
 
 const MAX_MARKS = 25
@@ -24,7 +25,7 @@ function Tally({ count }) {
   )
 }
 
-export default function Progress({ notes }) {
+export default function Progress({ notes, onClose }) {
   const { tasks, completions, today, loading } = useTaskData()
   const reduce = useReducedMotion()
 
@@ -45,6 +46,7 @@ export default function Progress({ notes }) {
   return (
     <main className="paper-page tab-screen progress">
       <h1 className="sr-only">Your progress</h1>
+      <div className="desk-head page-head"><BackButton label="Today" onClick={onClose} /></div>
       <header className="desk-head streak-head">
         <div className="mast-date">
           <span className="mast-num">{stats.streak}</span>

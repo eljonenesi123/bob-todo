@@ -2,22 +2,25 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { allRows } from '../lib/rows'
 
+// Groups live in the table notebook_pages, the notes inside them in notebook_items
 async function fetchNotebook() {
-  const [p, i] = await Promise.all([
+  const [g, n] = await Promise.all([
     allRows(() => supabase.from('notebook_pages').select('*').order('created_at').order('id')),
-    allRows(() => supabase.from('notebook_items').select('*').order('position').order('created_at').order('id')),
+    allRows(() => supabase.from('notebook_items').select('*').order('created_at').order('id')),
   ])
-  return { pages: p.data, items: i.data, error: p.error || i.error }
+  return { groups: g.data, notes: n.data, error: g.error || n.error }
 }
 
-// Pages of the notebook: free text ('note') or something to tick ('list'). Own pages plus the ones shared with you.
-export function useNotebook(userId) {
-  const [state, setState] = useState({ pages: [], items: [], loading: true, failed: false })
+const put = (rows, row) => (rows.some((r) => r.id === row.id) ? rows.map((r) => (r.id === row.id ? row : r)) : [...rows, row])
 
-  const apply = useCallback(({ pages, items, error }) => {
+// Your own groups plus the ones shared with you
+export function useNotebook(userId) {
+  const [state, setState] = useState({ groups: [], notes: [], loading: true, failed: false })
+
+  const apply = useCallback(({ groups, notes, error }) => {
     setState((s) => (error
-      ? { ...s, loading: false, failed: !s.pages.length }
-      : { pages, items, loading: false, failed: false }))
+      ? { ...s, loading: false, failed: !s.groups.length }
+      : { groups, notes, loading: false, failed: false }))
   }, [])
   const load = useCallback(async () => apply(await fetchNotebook()), [apply])
 
@@ -38,69 +41,49 @@ export function useNotebook(userId) {
     }
   }, [userId, apply, load])
 
-  const putPage = useCallback((row) => setState((s) => ({
-    ...s,
-    pages: s.pages.some((p) => p.id === row.id) ? s.pages.map((p) => (p.id === row.id ? row : p)) : [...s.pages, row],
-  })), [])
+  // New group, or changes to one. Answers the saved group.
+  const saveGroup = useCallback(async (group, fields) => {
+    const table = supabase.from('notebook_pages')
+    const { data, error } = group
+      ? await table.update(fields).eq('id', group.id).select().single()
+      : await table.insert({ ...fields, kind: 'list' }).select().single()
+    if (error) { load(); throw error }
+    setState((s) => ({ ...s, groups: put(s.groups, data) }))
+    return data
+  }, [load])
 
-  // Save what was written. `base` is the version it was written on (null = a new page).
-  // Answers { row }, { conflict: row } when the page changed elsewhere, { gone: true } when it was deleted, or { error }.
-  const savePage = useCallback(async ({ id, kind, title, body, base }) => {
-    const table = () => supabase.from('notebook_pages')
-    const res = base
-      ? await table().update({ title, body }).eq('id', id).eq('updated_at', base).select()
-      : await table().insert({ id, kind, title, body }).select()
-    let row = res.data?.[0]
-    // 23505 = this new page was already saved, but we never got the answer
-    if (res.error && res.error.code !== '23505') return { error: res.error }
+  const removeGroup = useCallback(async (group) => {
+    const { error } = await supabase.from('notebook_pages').delete().eq('id', group.id)
+    if (error) throw error
+    setState((s) => ({ ...s, groups: s.groups.filter((g) => g.id !== group.id), notes: s.notes.filter((n) => n.page_id !== group.id) }))
+  }, [])
+
+  // New note, or changes to one. `note` is the version that was opened: if it changed elsewhere
+  // since then, nothing is overwritten and the answer is { conflict } (or { gone } when deleted).
+  const saveNote = useCallback(async (note, groupId, fields) => {
+    const table = () => supabase.from('notebook_items')
+    const { data, error } = note
+      ? await table().update(fields).eq('id', note.id).eq('updated_at', note.updated_at).select()
+      : await table().insert({ ...fields, page_id: groupId }).select()
+    if (error) throw error
+    let row = data[0]
     if (!row) {
-      const now = await table().select('*').eq('id', id).maybeSingle()
-      if (now.error) return { error: now.error }
+      const now = await table().select('*').eq('id', note.id).maybeSingle()
+      if (now.error) throw now.error
       if (!now.data) return { gone: true }
-      if (now.data.title !== title || now.data.body !== body) return { conflict: now.data }
+      // Our own save may have gone through without us getting the answer
+      if (now.data.title !== fields.title || now.data.body !== fields.body) return { conflict: now.data }
       row = now.data
     }
-    putPage(row)
+    setState((s) => ({ ...s, notes: put(s.notes, row) }))
     return { row }
-  }, [putPage])
-
-  // Pin or share. True when it worked.
-  const setPage = useCallback(async (page, fields) => {
-    const { data, error } = await supabase.from('notebook_pages').update(fields).eq('id', page.id).select()
-    if (error || !data.length) { load(); return false }
-    putPage(data[0])
-    return true
-  }, [load, putPage])
-
-  const removePage = useCallback(async (page) => {
-    const { error } = await supabase.from('notebook_pages').delete().eq('id', page.id)
-    if (error) return false
-    setState((s) => ({ ...s, pages: s.pages.filter((p) => p.id !== page.id), items: s.items.filter((i) => i.page_id !== page.id) }))
-    return true
   }, [])
 
-  const addItem = useCallback(async (pageId, title, position) => {
-    const { data, error } = await supabase.from('notebook_items').insert({ page_id: pageId, title, position }).select().single()
-    if (error) return false
-    setState((s) => (s.items.some((i) => i.id === data.id) ? s : { ...s, items: [...s.items, data] }))
-    return true
+  const removeNote = useCallback(async (note) => {
+    const { error } = await supabase.from('notebook_items').delete().eq('id', note.id)
+    if (error) throw error
+    setState((s) => ({ ...s, notes: s.notes.filter((n) => n.id !== note.id) }))
   }, [])
 
-  const toggleItem = useCallback(async (item) => {
-    const done_at = item.done_at ? null : new Date().toISOString()
-    setState((s) => ({ ...s, items: s.items.map((i) => (i.id === item.id ? { ...i, done_at } : i)) }))
-    const { error } = await supabase.from('notebook_items').update({ done_at }).eq('id', item.id)
-    if (!error) return true
-    setState((s) => ({ ...s, items: s.items.map((i) => (i.id === item.id ? item : i)) }))
-    return false
-  }, [])
-
-  const removeItem = useCallback(async (item) => {
-    const { error } = await supabase.from('notebook_items').delete().eq('id', item.id)
-    if (error) return false
-    setState((s) => ({ ...s, items: s.items.filter((i) => i.id !== item.id) }))
-    return true
-  }, [])
-
-  return { ...state, reload: load, savePage, setPage, removePage, addItem, toggleItem, removeItem }
+  return { ...state, reload: load, saveGroup, removeGroup, saveNote, removeNote }
 }

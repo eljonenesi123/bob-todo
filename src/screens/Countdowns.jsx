@@ -33,12 +33,12 @@ export default function Countdowns({ userId, countdowns, partner, partnerName })
 
   return (
     <section className="pad" aria-label="Countdowns">
-      <div className="new-row">
+      <button type="button" className="write-row" onClick={() => setSheet({})}>
         <span className="row-margin"><span className="pen" aria-hidden="true">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>
         </span></span>
-        <button type="button" className="ink-btn" onClick={() => setSheet({})}>New countdown</button>
-      </div>
+        <span>New countdown</span>
+      </button>
       {error && <p className="pad-note error" role="alert">{error}</p>}
 
       {loading ? (
@@ -55,7 +55,7 @@ export default function Countdowns({ userId, countdowns, partner, partnerName })
           <p className="blank-sub">Add a trip, a birthday or any day you’re looking forward to. For trips, Bob reminds you to check in online the day before.</p>
         </div>
       ) : (
-        <ul className="ruled">
+        <ul className="notes-list">
           {ahead.map((c) => {
             const days = daysUntil(c.on_date, today)
             const note = checkInText(c, today)

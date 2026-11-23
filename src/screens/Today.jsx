@@ -45,7 +45,7 @@ function RowList({ tasks, big, onReorder, rowProps }) {
   )
 }
 
-export default function Today({ name, countdowns, onOpenCountdowns }) {
+export default function Today({ name, countdowns, onOpenCountdowns, onOpenProgress }) {
   const data = useTaskData()
   const { loading, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, addStep, toggleStep, removeStep } = data
   const [selected, setSelected] = useState(null)
@@ -91,7 +91,10 @@ export default function Today({ name, countdowns, onOpenCountdowns }) {
 
   return (
     <main className="today">
-      <h1 className="hello">{name ? `${greeting()}, ${name}` : greeting()}</h1>
+      <div className="hello-row">
+        <h1 className="hello">{name ? `${greeting()}, ${name}` : greeting()}</h1>
+        <button type="button" className="desk-btn" onClick={onOpenProgress}>Progress</button>
+      </div>
 
       <NextUp countdowns={countdowns} today={today} onOpen={onOpenCountdowns} />
 
