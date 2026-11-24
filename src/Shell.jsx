@@ -6,6 +6,7 @@ import { useNotes } from './hooks/useNotes'
 import { usePartner, cleanName } from './hooks/usePartner'
 import { useNotebook } from './hooks/useNotebook'
 import { useCountdowns } from './hooks/useCountdowns'
+import { useCalendar } from './hooks/useCalendar'
 import { usePlanDays } from './hooks/usePlanDays'
 import { useConnection } from './hooks/useConnection'
 import { onRefused } from './lib/outbox'
@@ -16,6 +17,7 @@ import DayComplete from './components/DayComplete'
 import UndoBar from './components/UndoBar'
 import Today from './screens/Today'
 import Progress from './screens/Progress'
+import Calendar from './screens/Calendar'
 import Notebook from './screens/Notebook'
 import Notes from './screens/Notes'
 import NotesAdmin from './screens/NotesAdmin'
@@ -33,12 +35,14 @@ export default function Shell({ user }) {
   const { loading, todayTasks, today, addTask } = useTaskData()
   const days = usePlanDays()
   const [picked, setPicked] = useState(null)
-  const day = tab === 'today' && days.some((d) => d.iso === picked) ? picked : today
+  const inDays = (tab === 'today' || tab === 'calendar') && days.some((d) => d.iso === picked)
+  const day = inDays ? picked : today // the day the round plus adds to
   const [adding, setAdding] = useState(false)
   const notes = useNotes(user.id)
   const { partner, partnerName } = usePartner(user.id)
   const notebook = useNotebook(user.id)
   const countdowns = useCountdowns(user.id)
+  const calendar = useCalendar(user.id)
   const [notebookView, setNotebookView] = useState('notes')
   // The last thing deleted, with its way back: { text, undo }
   const [notice, setNotice] = useState(null)
@@ -97,12 +101,15 @@ export default function Shell({ user }) {
 
   const screens = {
     today: <Today name={cleanName(profile?.display_name)} days={days} selected={day} onSelect={setPicked} countdowns={countdowns}
+      calendar={calendar} onOpenCalendar={(iso) => { setPicked(iso); setTab('calendar'); window.scrollTo(0, 0) }}
       onOpenCountdowns={() => { setNotebookView('countdowns'); setTab('notebook') }}
       onNotice={notify}
       onOpenProgress={() => { setTab('progress'); window.scrollTo(0, 0) }} />,
     notebook: <Notebook userId={user.id} notebook={notebook} countdowns={countdowns} partner={partner} partnerName={partnerName}
       view={notebookView} onView={setNotebookView} />,
     progress: <Progress notes={notes} onClose={() => { setTab('today'); window.scrollTo(0, 0) }} />,
+    calendar: <Calendar userId={user.id} calendar={calendar} countdowns={countdowns} partner={partner} partnerName={partnerName}
+      day={picked ?? today} onDay={setPicked} onNotice={notify} onClose={() => { setTab('today'); window.scrollTo(0, 0) }} />,
     notes: notesView === 'write'
       ? <NotesAdmin userId={user.id} partner={partner} partnerName={partnerName} switcher={switcher} />
       : <Notes notes={notes} allDone={allDone} switcher={switcher} />,
@@ -124,8 +131,8 @@ export default function Shell({ user }) {
         </motion.div>
       </AnimatePresence>
 
-      {/* Progress opens from Today, so it belongs to that tab */}
-      <BottomNav tab={tab === 'progress' ? 'today' : tab} onChange={openTab} onAdd={() => setAdding(true)} notesDot={notes.hasNew} nudgesDot={pushIssue} />
+      {/* Progress and the calendar open from Today, so they belong to that tab */}
+      <BottomNav tab={tab === 'progress' || tab === 'calendar' ? 'today' : tab} onChange={openTab} onAdd={() => setAdding(true)} notesDot={notes.hasNew} nudgesDot={pushIssue} />
 
       <AddTaskSheet open={adding} onClose={() => setAdding(false)} onAdd={addFromPlus}
         bigCount={todayTasks.filter((t) => t.is_big3).length} days={days} day={day} />

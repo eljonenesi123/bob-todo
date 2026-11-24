@@ -36,11 +36,12 @@
 
 /* Day strip: today + 5 days */
 .daystrip {
-  display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px;
+  display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px;
   padding: 18px 16px 0;
 }
+.day-tabs { display: contents; }
 .day {
-  border: none; background: transparent; color: var(--muted); cursor: pointer;
+  position: relative; border: none; background: transparent; color: var(--muted); cursor: pointer;
   padding: 10px 0 12px; border-radius: 12px 12px 0 0;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   transition: background-color .2s ease, color .2s ease;
@@ -52,6 +53,12 @@
 .day.is-selected { background: var(--paper); color: var(--pencil); }
 .day.is-selected .day-num { color: var(--ink); }
 .day.is-selected .day-ticks i { background: var(--ink); }
+/* In the calendar: a line under the day, running on into the next one */
+.day-mark { position: absolute; left: -1.5px; right: -1.5px; bottom: 7px; height: 4px; background: var(--muted); }
+.day-mark.is-hl { background: var(--yellow); }
+.day.is-selected .day-mark { left: 10px; right: 10px; border-radius: 2px; background: var(--ink); }
+.day.is-selected .day-mark.is-hl { background: var(--yellow); box-shadow: 0 0 0 1.5px var(--ink); }
+.day-month { justify-content: center; gap: 7px; box-shadow: inset 0 0 0 1.5px var(--gray-3); color: var(--silver); }
 
 /* The legal pad */
 .pad {

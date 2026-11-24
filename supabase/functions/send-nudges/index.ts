@@ -71,15 +71,15 @@ async function allRows<T>(makeQuery: () => any): Promise<T[]> {
 }
 
 // ---------- dates (same rules as the app) ----------
-function local(tz: string) {
+function local(tz: string, at = new Date()) {
   let parts: Record<string, string>
   try {
     parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
       timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', weekday: 'short', hourCycle: 'h23',
-    }).formatToParts(new Date()).map((p) => [p.type, p.value]))
+    }).formatToParts(at).map((p) => [p.type, p.value]))
   } catch {
-    return local('Europe/Tirane')
+    return local('Europe/Tirane', at)
   }
   return {
     date: `${parts.year}-${parts.month}-${parts.day}`,
@@ -126,6 +126,60 @@ function streak(tasks: Task[], comps: Completion[], today: string) {
     d = addDays(d, -1)
   }
   return n
+}
+
+// ---------- calendar (startOf and occurrences are the same as the app's, src/lib/calendar.js) ----------
+type Entry = {
+  id: string; user_id: string; title: string; starts_on: string; ends_on: string; at_time: string | null
+  repeat: string; every: number; until: string | null; skipped: string[]
+  remind_days: number[]; remind_at: string; remind_from: string
+}
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(to + 'T12:00:00Z') - Date.parse(from + 'T12:00:00Z')) / 86400000)
+const daysIn = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate()
+const onDay = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+function startOf(e: Entry, k: number): string | null {
+  if (e.repeat === 'weeks') return addDays(e.starts_on, 7 * e.every * k)
+  if (e.repeat === 'never') return k === 0 ? e.starts_on : null
+  const [y0, m0, d0] = e.starts_on.split('-').map(Number)
+  const months = m0 - 1 + (e.repeat === 'year' ? 12 * k : k)
+  const y = y0 + Math.floor(months / 12)
+  const m = (months % 12) + 1
+  if (e.repeat !== 'month_weekday') return onDay(y, m, Math.min(d0, daysIn(y, m)))
+  const first = 1 + ((weekday(e.starts_on) - weekday(onDay(y, m, 1)) + 7) % 7)
+  let d = first + 7 * (Math.ceil(d0 / 7) - 1)
+  if (d > daysIn(y, m)) d -= 7
+  return onDay(y, m, d)
+}
+// The starts between two days
+function starts(e: Entry, from: string, to: string) {
+  const found: string[] = []
+  for (let k = 0; ; k++) {
+    const s = startOf(e, k)
+    if (!s || s > to || (e.until && s > e.until)) return found
+    if (s >= from && !e.skipped.includes(s)) found.push(s)
+  }
+}
+// The reminder to send now for one start: the latest whose time has come, if any.
+// Times that had already gone by when the entry was saved don't count.
+function dueReminder(e: Entry, start: string, now: { date: string; minutes: number }, saved: { date: string; minutes: number }) {
+  const at = toMin(e.remind_at)
+  // Too late to be useful: the appointment has begun
+  if (start === now.date && e.at_time && now.minutes >= toMin(e.at_time)) return null
+  const due = e.remind_days.filter((n) => {
+    const d = addDays(start, -n)
+    const come = d < now.date || (d === now.date && now.minutes >= at)
+    const fresh = d > saved.date || (d === saved.date && at > saved.minutes)
+    return come && fresh
+  })
+  return due.length ? Math.min(...due) : null
+}
+const inWords = (n: number) => n === 0 ? 'today' : n === 1 ? 'tomorrow' : n === 7 ? 'in a week' : `in ${n} days`
+const niceDate = (iso: string) => new Date(iso + 'T12:00:00Z').toLocaleDateString('en-GB', { timeZone: 'UTC', weekday: 'short', day: 'numeric', month: 'long' })
+function calendarMessage(e: Entry, start: string, today: string, from: string) {
+  const end = addDays(start, daysBetween(e.starts_on, e.ends_on))
+  const when = inWords(daysBetween(today, start))
+  const dates = start === end ? `${niceDate(start)}${e.at_time ? ` at ${e.at_time.slice(0, 5)}` : ''}` : `${niceDate(start)} to ${niceDate(end)}`
+  return { title: `${e.title} ${start === end ? 'is' : 'starts'} ${when}`, body: `${dates}.${from ? ` Shared by ${from}.` : ''}` }
 }
 
 // ---------- messages ----------
@@ -262,6 +316,27 @@ async function handleUser(p: Profile, subs: Sub[], names: Map<string, string>, s
     }, 'checkin', 12 * 3600)
     // Nobody got it: forget we tried, so the next run tries again
     if (!ok) await db.from('nudge_log').delete().match({ user_id: p.id, kind: 'checkin', ref: trip.id, sent_on: trip.on_date })
+  }
+
+  // Calendar reminders, picked by this person (or by the partner, for both). Same rules as the check-in:
+  // not stopped by a snooze or a finished day, and inside quiet hours only if such a time was picked.
+  // If it couldn't be delivered it's tried again until the first day is over, with the right words by then.
+  const { data: entries, error: calErr } = await db.from('calendar_entries').select('*')
+    .or(`user_id.eq.${p.id},and(shared_with.eq.${p.id},remind_partner.eq.true)`).neq('remind_days', '{}')
+  if (calErr) console.error('calendar', calErr.message) // e.g. SQL 11 not run yet: everything else still works
+  for (const e of (entries ?? []) as Entry[]) {
+    const saved = local(p.timezone || 'Europe/Tirane', new Date(e.remind_from))
+    for (const start of starts(e, now.date, addDays(now.date, 7))) {
+      const n = dueReminder(e, start, now, saved)
+      if (n === null) continue
+      const pickedQuiet = addDays(start, -n) === now.date && quiet(toMin(e.remind_at))
+      if (quiet(now.minutes) && !pickedQuiet) continue
+      const ref = `${e.id}:${n}`
+      if (!await once(p.id, 'calendar', ref, start)) continue
+      const from = e.user_id === p.id ? '' : names.get(e.user_id) || 'your person'
+      const ok = await push({ ...calendarMessage(e, start, now.date, from.includes('@') ? 'your person' : from), tag: `calendar-${e.id}` }, 'calendar', 12 * 3600)
+      if (!ok) await db.from('nudge_log').delete().match({ user_id: p.id, kind: 'calendar', ref, sent_on: start })
+    }
   }
 
   if (quiet(now.minutes)) return

@@ -9,6 +9,8 @@ import AddTaskSheet from '../components/AddTaskSheet'
 import TaskMenu from '../components/TaskMenu'
 import FocusTimer from '../components/FocusTimer'
 import NextUp from '../components/NextUp'
+import OnDay from '../components/OnDay'
+import { between } from '../lib/calendar'
 import { readFocus } from '../lib/focus'
 import './Today.css'
 
@@ -45,7 +47,7 @@ function RowList({ tasks, big, onReorder, rowProps }) {
   )
 }
 
-export default function Today({ name, days, selected, onSelect, countdowns, onOpenCountdowns, onOpenProgress, onNotice }) {
+export default function Today({ name, days, selected, onSelect, countdowns, calendar, onOpenCountdowns, onOpenCalendar, onOpenProgress, onNotice }) {
   const data = useTaskData()
   const { loading, failed, reload, today, todayTasks, planFor, toggle, addTask, updateTask, moveToTomorrow, reorder, removeTask, restoreTask, addStep, toggleStep, removeStep, restoreStep } = data
   const [editing, setEditing] = useState(null)
@@ -57,6 +59,11 @@ export default function Today({ name, days, selected, onSelect, countdowns, onOp
   const isToday = day === today
 
   const list = isToday ? todayTasks : planFor(day)
+  const marks = {}
+  for (const { iso } of days) {
+    const on = between(calendar.entries, [], iso, iso)
+    if (on.length) marks[iso] = on.some((o) => o.entry.highlight) ? 'hl' : 'on'
+  }
   const big = list.filter((t) => t.is_big3).sort(byDone)
   const rest = list.filter((t) => !t.is_big3).sort(byDone)
   const done = todayTasks.filter((t) => t.done).length
@@ -128,6 +135,7 @@ export default function Today({ name, days, selected, onSelect, countdowns, onOp
       </div>
 
       <NextUp countdowns={countdowns} today={today} onOpen={onOpenCountdowns} />
+      <OnDay calendar={calendar} day={day} today={today} onOpen={onOpenCalendar} />
 
       <header className="masthead">
         <AnimatePresence mode="popLayout" initial={false}>
@@ -154,7 +162,7 @@ export default function Today({ name, days, selected, onSelect, countdowns, onOp
 
       {!isToday && <p className="greeting">Planning {d.toLocaleDateString('en-GB', { weekday: 'long' })}</p>}
 
-      <DayStrip days={days} selected={day} onSelect={onSelect} />
+      <DayStrip days={days} selected={day} marks={marks} onSelect={onSelect} onMonth={() => onOpenCalendar(day)} />
 
       <section className="pad" aria-label={isToday ? 'Today’s list' : `Plan for ${d.toLocaleDateString('en-GB', { weekday: 'long' })}`}>
         {isToday && <p className="quote">{quoteOfTheDay()}</p>}

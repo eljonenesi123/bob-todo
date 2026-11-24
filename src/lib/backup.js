@@ -15,7 +15,7 @@ export async function makeBackup(userId) {
     return data
   }
   const from = (table) => supabase.from(table).select('*')
-  const [profile, tasks, done, steps, groups, notes, countdowns, letters, rewards] = await Promise.all([
+  const [profile, tasks, done, steps, groups, notes, countdowns, calendar, letters, rewards] = await Promise.all([
     all(() => from('profiles').eq('id', userId).order('id')),
     all(() => from('tasks').eq('user_id', userId).order('created_at').order('id')), // deleted ones too
     all(() => from('task_completions').eq('user_id', userId).order('done_on').order('task_id')),
@@ -23,6 +23,7 @@ export async function makeBackup(userId) {
     all(() => from('notebook_pages').order('created_at').order('id')),
     all(() => from('notebook_items').order('created_at').order('id')),
     all(() => from('countdowns').order('on_date').order('id')),
+    all(() => from('calendar_entries').order('starts_on').order('id')),
     all(() => from('notes').or(`recipient_id.eq.${userId},author_id.eq.${userId}`).order('created_at').order('id')),
     all(() => from('rewards').or(`recipient_id.eq.${userId},author_id.eq.${userId}`).order('created_at').order('id')),
   ])
@@ -31,7 +32,7 @@ export async function makeBackup(userId) {
     about: 'A copy of your data in Bob. Locked notebook groups are encrypted and need their PIN. Photos and letters you haven’t opened yet are not included.',
     profile: profile[0] ?? null,
     tasks, task_completions: done, steps,
-    notebook_groups: groups, notebook_notes: notes, countdowns,
+    notebook_groups: groups, notebook_notes: notes, countdowns, calendar,
     // A sealed letter stays sealed
     letters: letters.filter((l) => l.author_id === userId || l.opened_at),
     rewards,
